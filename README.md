@@ -42,14 +42,15 @@ Someone shares a Google Drive or pCloud folder by link — models, assets, a pho
 
 > 🔒 **Local & private.** rclone's OAuth token stays on your machine (`~/.config/rclone/rclone.conf`); Trawl has no accounts, cloud, or telemetry.
 
-## 📸 Screenshots
+## 🎬 See it in action
 
-<table>
-  <tr>
-    <td width="50%"><img src="assets/new-mapping.jpg" alt="New mapping" /><br/><sub><b>New mapping</b> — pair a by-link Drive/pCloud source with a local destination.</sub></td>
-    <td width="50%"><img src="assets/dashboard.jpg" alt="Live sync" /><br/><sub><b>Live sync</b> — progress, cancel/retry, and per-mapping auto-sync.</sub></td>
-  </tr>
-</table>
+**Add a sync mapping** — paste a Drive/pCloud link, pick a local destination, save.
+
+<div align="center"><img src="assets/trawl-new-mapping.gif" width="820" alt="Adding a sync mapping in Trawl" /></div>
+
+**Pull with live progress** — hit sync and watch additive copies stream in, per-mapping.
+
+<div align="center"><img src="assets/trawl-sync.gif" width="820" alt="Syncing folders with live progress in Trawl" /></div>
 
 ## 🚀 Quick start
 

@@ -182,6 +182,16 @@
   .step h3 { font-size: 16px; margin-bottom: 6px; }
   .step p { color: var(--tx-muted); font-size: 14px; }
 
+  /* getting-started walkthrough */
+  .walkhead { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+  .walknum {
+    flex: none; font-family: var(--font-mono); font-size: 14px; color: var(--accent);
+    border: 1px solid var(--accent-25); background: var(--accent-10);
+    width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+  }
+  .walkhead h3 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .walkhead p { color: var(--tx-muted); font-size: 14.5px; max-width: 62ch; }
+
   /* install block */
   .install { max-width: 760px; margin: 0 auto; display: grid; gap: 14px; }
   .ib { background: var(--bg-card); border: 1px solid var(--bd-card); border-radius: 12px; padding: 18px 20px; }
@@ -302,51 +312,58 @@
 
   <hr class="divider" />
 
-  <!-- SPOTLIGHT -->
-  <section id="spotlight">
-    <div class="wrap split">
-      <div>
-        <h2>Paste a link. Pick a folder. Pull.</h2>
-        <p>The whole flow is one screen: a by-link source on the left, your local library on the right. No remote paths to memorize, no two-way sync to fear.</p>
-        <ul class="tick">
-          <li>Drive folder links, "Shared with me", and pCloud public links</li>
-          <li>Browse and create local destinations inline</li>
-          <li>Cancel, retry, and delete any mapping — with a clear last-run status</li>
-          <li>A one-time Google connect; the token never leaves your machine</li>
-        </ul>
-      </div>
-      <div class="window">
-        <div class="titlebar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="t">Trawl — New sync mapping</span></div>
-        <img src="new-mapping.jpg" alt="Pairing a Drive folder with a local destination" />
-      </div>
-    </div>
-  </section>
-
-  <hr class="divider" />
-
-  <!-- HOW IT WORKS -->
+  <!-- GETTING STARTED (visual walkthrough) -->
   <section id="how">
     <div class="wrap">
       <div class="sec-head">
-        <h2>From shared link to local copy in three steps.</h2>
-        <p>Trawl only ever pulls — there's no push, no two-way sync, and no delete-at-destination.</p>
+        <h2>From connect to first pull.</h2>
+        <p>A one-time Google connect, pair a folder, and pull. Trawl only ever pulls — no push, no two-way sync, no delete-at-destination.</p>
       </div>
-      <div class="steps">
-        <div class="step">
-          <div class="n">1</div>
-          <h3>Paste a folder link</h3>
-          <p>Drop in a Google Drive or pCloud folder URL. Trawl extracts the folder and lists what's inside.</p>
+
+      <div style="display: grid; gap: 40px; max-width: 900px; margin: 0 auto;">
+
+        <div>
+          <div class="walkhead">
+            <span class="walknum">1</span>
+            <div>
+              <h3>Connect Google Drive</h3>
+              <p>A one-time OAuth in your browser — the token stays on your machine. (pCloud public links need no connection.)</p>
+            </div>
+          </div>
+          <div class="window">
+            <div class="titlebar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="t">Trawl — Connect</span></div>
+            <img src="connect.jpg" alt="Connect Google Drive screen" />
+          </div>
         </div>
-        <div class="step">
-          <div class="n">2</div>
-          <h3>Pick a local destination</h3>
-          <p>Choose (or create) a folder under your library root. It's captured as an absolute path, so it never drifts.</p>
+
+        <div>
+          <div class="walkhead">
+            <span class="walknum">2</span>
+            <div>
+              <h3>Add a sync mapping</h3>
+              <p>Paste a Drive/pCloud link, pick a local destination, and save — the whole flow is one screen.</p>
+            </div>
+          </div>
+          <div class="window">
+            <div class="titlebar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="t">Trawl — New sync mapping</span></div>
+            <img src="trawl-new-mapping.gif" alt="Adding a sync mapping in Trawl" loading="lazy" />
+          </div>
         </div>
-        <div class="step">
-          <div class="n">3</div>
-          <h3>Pull — additively</h3>
-          <p>Trawl runs <code>rclone copy</code> and streams live progress. New and changed files come down; nothing is ever deleted.</p>
+
+        <div>
+          <div class="walkhead">
+            <span class="walknum">3</span>
+            <div>
+              <h3>Pull, with live progress</h3>
+              <p>Hit sync and watch additive copies stream in per mapping — percent, bytes, files, speed, ETA. Nothing at the destination is ever deleted.</p>
+            </div>
+          </div>
+          <div class="window">
+            <div class="titlebar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="t">Trawl — Sync Mappings</span></div>
+            <img src="trawl-sync.gif" alt="Syncing folders with live progress in Trawl" loading="lazy" />
+          </div>
         </div>
+
       </div>
     </div>
   </section>
