@@ -1,0 +1,157 @@
+/* ============================================================================
+   Trawl — "Slate" design tokens (single source of truth)
+   Values transcribed verbatim from the design handoff (README + prototype).
+   Every component must read colors/spacing from these variables — do not
+   hardcode hexes in components.
+   ============================================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  /* ---- Color: backgrounds ---- */
+  --bg-app: #1b1d23; /* main content background */
+  --bg-sidebar: #15171c; /* sidebar, tree panes, inputs, log box */
+  --bg-card: #212430; /* mapping cards, composer, run panel */
+  --bg-hover: #1d2026; /* row hover */
+  --bg-button-neutral: #2b2e39; /* secondary buttons */
+  --bg-input-deep: #0f1115; /* new-folder inline input */
+
+  /* ---- Color: borders ---- */
+  --border-subtle: #25282f; /* sidebar / pane dividers */
+  --border-card: #2c2f3a; /* card & input borders */
+  --border-button: #363a46; /* secondary button border */
+
+  /* ---- Color: text ---- */
+  --text-primary: #e7e9ee; /* headings, selected folder names */
+  --text-secondary: #cfd2da; /* sub-labels */
+  --text-muted: #7b808c; /* meta text, descriptions */
+  --text-faint: #565b66; /* mono path prefixes, hints */
+  --text-faint-2: #646975; /* alt faint */
+  --text-tree: #c5c8d2; /* unselected folder names */
+  --text-folder-glyph: #6b7280; /* unselected folder glyph stroke */
+
+  /* ---- Color: accent (teal) ---- */
+  --accent: #2dd4bf;
+  --accent-ink: #0c1512; /* text on teal buttons */
+  --accent-10: rgba(45, 212, 191, 0.1); /* selected row bg, ghost button bg */
+  --accent-12: rgba(45, 212, 191, 0.12);
+  --accent-15: rgba(45, 212, 191, 0.15);
+  --accent-25: rgba(45, 212, 191, 0.25);
+  --accent-28: rgba(45, 212, 191, 0.28); /* selection highlight */
+
+  /* ---- Color: status ---- */
+  --status-amber: #f59e0b; /* syncing / running, queue, path exists */
+  --status-red: #f43f5e; /* failed, destructive, cancel */
+  --status-red-soft: #f08a99;
+  --status-red-soft-2: #f87171;
+  --status-grey: #9499a3; /* cancelled */
+  --status-idle: #7b808c; /* not synced */
+
+  /* status pill backgrounds (~12% alpha) */
+  --amber-12: rgba(245, 158, 11, 0.12);
+  --red-12: rgba(244, 63, 94, 0.12);
+  --red-10: rgba(244, 63, 94, 0.1);
+  --red-07: rgba(244, 63, 94, 0.07);
+  --red-20: rgba(244, 63, 94, 0.2);
+  --red-30: rgba(244, 63, 94, 0.3);
+  --red-40: rgba(244, 63, 94, 0.4);
+  --grey-12: rgba(148, 153, 163, 0.12);
+  --idle-12: rgba(123, 128, 140, 0.12);
+
+  /* failed-card border tints */
+  --card-bd-failed: #3a2329;
+  --card-bd-running: #3a3320;
+
+  /* ---- Fonts ---- */
+  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* ---- Radii ---- */
+  --r-card: 9px;
+  --r-panel: 10px;
+  --r-window: 11px;
+  --r-button: 7px;
+  --r-button-sm: 6px;
+  --r-pill: 20px;
+  --r-logo: 7px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-sidebar);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: var(--accent-28);
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2c2f3a;
+  border: 3px solid #1b1d23;
+  border-radius: 8px;
+}
+
+input {
+  font-family: inherit;
+}
+button {
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes barShine {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+/* App shell baseline (the prototype's outer wrapper) */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+/* Utility: a hover-able row that lifts to --bg-hover.
+   Components apply .hover-row and rely on this for the prototype's
+   style-hover="background:#1d2026" behavior. */
+.hover-row:hover {
+  background: var(--bg-hover) !important;
+}
