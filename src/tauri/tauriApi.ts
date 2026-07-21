@@ -6,6 +6,8 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import type {
   Api,
   ConnectionState,
@@ -17,7 +19,11 @@ import type {
   Settings,
   SourceKind,
   SourceProvider,
+  UpdateInfo,
 } from "../types";
+
+// Holds the pending Update handle between checkForUpdate() and installUpdate().
+let pendingUpdate: Update | null = null;
 
 /* ---------------------------------------------------------------------------
    tauriApi implementation
@@ -95,6 +101,22 @@ const tauriApiImpl: Api = {
 
   setMappingSkipShortcuts(id: string, skip: boolean): Promise<Mapping[]> {
     return invoke<Mapping[]>("set_mapping_skip_shortcuts", { id, skip });
+  },
+
+  // ---------- updates ----------
+
+  async checkForUpdate(): Promise<UpdateInfo | null> {
+    const upd = await check();
+    pendingUpdate = upd;
+    if (!upd) return null;
+    return { version: upd.version, notes: upd.body ?? null };
+  },
+
+  async installUpdate(): Promise<void> {
+    const upd = pendingUpdate;
+    if (!upd) throw new Error("No update available");
+    await upd.downloadAndInstall();
+    await relaunch();
   },
 
   // ---------- settings ----------

@@ -19,6 +19,7 @@ import type {
   Settings,
   SourceKind,
   SourceProvider,
+  UpdateInfo,
 } from "../types";
 import {
   simSourceChildren,
@@ -300,6 +301,18 @@ class SimApi implements Api {
       m.id === id ? { ...m, skip_shortcuts: skip } : m,
     );
     return [...this.mappings];
+  }
+
+  // ---------- updates ----------
+
+  async checkForUpdate(): Promise<UpdateInfo | null> {
+    // Browser sim has no real update channel — always "current".
+    await delay(400);
+    return null;
+  }
+
+  async installUpdate(): Promise<void> {
+    // no-op in the sim
   }
 
   // ---------- settings ----------

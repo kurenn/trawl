@@ -261,6 +261,71 @@ export default function Sidebar() {
             </button>
           )}
 
+        {/* Update affordance — checks GitHub Releases; installs in-app + relaunches. */}
+        {t.update.phase === "available" ? (
+          <button
+            onClick={t.installUpdate}
+            title={`Install Trawl ${t.update.version ?? ""} and restart`}
+            style={{
+              marginTop: "8px",
+              fontFamily: "inherit",
+              fontSize: "11.5px",
+              fontWeight: 600,
+              color: "var(--accent-ink)",
+              background: "var(--accent)",
+              border: "1px solid transparent",
+              borderRadius: "6px",
+              padding: "6px 10px",
+              cursor: "pointer",
+              width: "100%",
+              textAlign: "center",
+            }}
+          >
+            ↑ Update to v{t.update.version}
+          </button>
+        ) : t.update.phase === "downloading" ? (
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "11.5px",
+              color: "var(--accent)",
+            }}
+          >
+            Downloading update…
+          </div>
+        ) : t.update.phase === "checking" ? (
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "11.5px",
+              color: "var(--text-faint)",
+            }}
+          >
+            Checking for updates…
+          </div>
+        ) : (
+          <button
+            onClick={t.checkForUpdate}
+            style={{
+              marginTop: "8px",
+              fontFamily: "inherit",
+              fontSize: "11.5px",
+              color: "var(--text-faint)",
+              background: "transparent",
+              border: "none",
+              padding: "2px 0",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            {t.update.phase === "error"
+              ? "Update check failed — retry"
+              : t.update.phase === "current"
+                ? "✓ Trawl is up to date · re-check"
+                : "Check for updates"}
+          </button>
+        )}
+
         {/* Each mapping has its own destination folder (shown on its card),
             so there's no single global root to display here. */}
       </div>

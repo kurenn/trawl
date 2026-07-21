@@ -153,6 +153,27 @@ export interface RunProgress {
    The store talks only to this interface (see src/api.ts for selection).
    --------------------------------------------------------------------------- */
 
+/** A newer version available via the in-app updater (Tauri updater plugin). */
+export interface UpdateInfo {
+  version: string; // the available version, e.g. "0.2.0"
+  notes: string | null; // release notes body, if any
+}
+
+/** Sidebar update affordance state. */
+export type UpdatePhase =
+  | "idle" // not checked yet
+  | "checking" // querying the release endpoint
+  | "available" // a newer version is ready to install
+  | "downloading" // installing + about to relaunch
+  | "current" // running the latest version
+  | "error"; // check/install failed
+
+export interface UpdateState {
+  phase: UpdatePhase;
+  version: string | null; // available version when phase === "available"
+  error: string | null;
+}
+
 export interface Api {
   /** True when running under the real Tauri runtime (vs browser sim). */
   readonly isReal: boolean;
@@ -193,6 +214,14 @@ export interface Api {
   setMappingAutoSync(id: string, auto: boolean): Promise<Mapping[]>;
   /** Toggle a mapping's skip-shortcuts flag; returns the full updated list. */
   setMappingSkipShortcuts(id: string, skip: boolean): Promise<Mapping[]>;
+
+  // --- updates ---
+  /** Check the release endpoint for a newer version. Resolves to update info
+   *  if one is available, or null if the app is already current. */
+  checkForUpdate(): Promise<UpdateInfo | null>;
+  /** Download + install the pending update, then relaunch into it. Only valid
+   *  after checkForUpdate() returned a non-null result. */
+  installUpdate(): Promise<void>;
 
   // --- settings ---
   getSettings(): Promise<Settings>;
@@ -338,6 +367,12 @@ export interface UseTrawl {
   goConnect: () => void;
   connection: ConnectionState;
   connect: () => void;
+  /** In-app updater state + actions (sidebar affordance). */
+  update: UpdateState;
+  /** Manually re-check for a newer version. */
+  checkForUpdate: () => void;
+  /** Install the available update and relaunch. */
+  installUpdate: () => void;
   libraryRoot: string;
   /** Open a native folder picker to choose where syncs land (the library root). */
   changeLibraryRoot: () => void;

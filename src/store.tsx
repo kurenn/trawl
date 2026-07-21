@@ -42,6 +42,7 @@ import type {
   SourceProvider,
   StagedPair,
   TreeRow,
+  UpdateState,
   UseTrawl,
   View,
 } from "./types";
@@ -88,6 +89,13 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
   const [libraryRoot, setLibraryRoot] = useState<string>("");
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+
+  // ---- In-app updater ----
+  const [update, setUpdate] = useState<UpdateState>({
+    phase: "idle",
+    version: null,
+    error: null,
+  });
 
   // ---- Settings ----
   const [settings, setSettingsState] = useState<Settings>({
@@ -198,6 +206,23 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       setMappings(maps);
       mappingsRef.current = maps;
       setSettingsState(sett);
+
+      // Fire-and-forget: check for a newer version on launch. Drive-independent
+      // (works for pCloud-only users too); failures are silent (offline, etc.).
+      setUpdate((u) => ({ ...u, phase: "checking", error: null }));
+      api
+        .checkForUpdate()
+        .then((info) => {
+          if (!mounted) return;
+          setUpdate(
+            info
+              ? { phase: "available", version: info.version, error: null }
+              : { phase: "current", version: null, error: null },
+          );
+        })
+        .catch(() => {
+          if (mounted) setUpdate({ phase: "idle", version: null, error: null });
+        });
 
       // Reload mappings + settings whenever the backend changes shared state
       // (tray toggle, auto-sync scheduler, etc.)
@@ -352,6 +377,39 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
           error: String(e),
         }),
       );
+  }, []);
+
+  /* -------------------------------------------------------------------------
+     IN-APP UPDATER
+     ---------------------------------------------------------------------- */
+
+  const checkForUpdate = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    setUpdate((u) => ({ ...u, phase: "checking", error: null }));
+    api
+      .checkForUpdate()
+      .then((info) =>
+        setUpdate(
+          info
+            ? { phase: "available", version: info.version, error: null }
+            : { phase: "current", version: null, error: null },
+        ),
+      )
+      .catch((e: unknown) =>
+        setUpdate({ phase: "error", version: null, error: String(e) }),
+      );
+  }, []);
+
+  const installUpdate = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    // Downloads, installs, and relaunches into the new version — the process
+    // exits on success, so there's no "done" state to set here.
+    setUpdate((u) => ({ ...u, phase: "downloading", error: null }));
+    api.installUpdate().catch((e: unknown) =>
+      setUpdate((u) => ({ ...u, phase: "error", error: String(e) })),
+    );
   }, []);
 
   /* -------------------------------------------------------------------------
@@ -1413,6 +1471,9 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       goConnect,
       connection,
       connect,
+      update,
+      checkForUpdate,
+      installUpdate,
       libraryRoot,
       changeLibraryRoot,
       mappingCount,
@@ -1476,6 +1537,9 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       goConnect,
       connection,
       connect,
+      update,
+      checkForUpdate,
+      installUpdate,
       libraryRoot,
       changeLibraryRoot,
       mappingCount,
