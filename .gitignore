@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bundled rclone sidecar (fetched per-build by scripts/fetch-rclone.sh)
+src-tauri/binaries/

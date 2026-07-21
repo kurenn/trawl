@@ -35,6 +35,32 @@ fn is_valid_drive_id(id: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Locate the rclone binary.
+//
+// Production builds bundle rclone as a Tauri sidecar (`externalBin`), placed
+// next to the app executable — so an installed Trawl is self-contained and
+// needs no separate `brew install rclone`. In development (running from
+// `target/debug`, where no sidecar is bundled) — and for anyone who prefers
+// their own rclone — we fall back to `rclone` on the PATH.
+// ---------------------------------------------------------------------------
+fn rclone_bin() -> std::path::PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let name = if cfg!(target_os = "windows") {
+                "rclone.exe"
+            } else {
+                "rclone"
+            };
+            let bundled = dir.join(name);
+            if bundled.exists() {
+                return bundled;
+            }
+        }
+    }
+    std::path::PathBuf::from("rclone")
+}
+
+// ---------------------------------------------------------------------------
 // Build the rclone "fs" (connection-string) portion that precedes the colon.
 // Examples:
 //   build_fs("gdrive", SourceKind::FolderId, Some("1abc_XYZ"), false, false)
@@ -90,7 +116,7 @@ pub fn detect_connection(remote: &str) -> ConnectionState {
     // `rclone listremotes --long` outputs lines like:
     //   gdrive:  drive
     //   s3:      s3
-    let output = match Command::new("rclone").args(["listremotes", "--long"]).output() {
+    let output = match Command::new(rclone_bin()).args(["listremotes", "--long"]).output() {
         Ok(o) => o,
         Err(e) => {
             let msg = if e.kind() == std::io::ErrorKind::NotFound {
@@ -169,7 +195,7 @@ pub fn detect_connection(remote: &str) -> ConnectionState {
 /// Blocks until rclone exits (the user completes the flow).
 pub fn connect_drive(remote: &str) -> ConnectionState {
     // `rclone config create <name> type` — inherits stdio so OAuth can open browser
-    let status = Command::new("rclone")
+    let status = Command::new(rclone_bin())
         .args(["config", "create", remote, "drive"])
         .status();
 
@@ -230,7 +256,7 @@ pub fn list_source_folders(remote: &str, args: &ListSourceArgs) -> Result<Vec<Fo
     // single string argument — no injection risk.
     let target = format!("{}:{}", fs, args.subpath);
 
-    let output = Command::new("rclone")
+    let output = Command::new(rclone_bin())
         .args([
             "lsjson",
             &target,
@@ -309,7 +335,7 @@ pub fn resolve_source_name(remote: &str, kind: SourceKind, source_id: Option<&st
                 return String::new();
             }
             let fs = format!("{},root_folder_id={}:", remote, id);
-            let result = Command::new("rclone")
+            let result = Command::new(rclone_bin())
                 .args(["lsjson", &fs, "--stat", "--no-modtime"])
                 .output();
 
@@ -500,7 +526,7 @@ pub async fn run_sync(
     //     --stats-log-level NOTICE → stats appear in JSON log stream
     //     --create-empty-src-dirs → mirror empty directories
     //     -v                    → verbose — includes per-file Copied/Failed notices
-    let mut child = match tokio::process::Command::new("rclone")
+    let mut child = match tokio::process::Command::new(rclone_bin())
         .args([
             "copy",
             &src_label,

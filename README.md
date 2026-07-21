@@ -38,6 +38,7 @@ Someone shares a Google Drive or pCloud folder by link — models, assets, a pho
 - 🧭 **Cancel · Retry · Delete** — full control over every mapping, with a persisted last-run status and a clear error banner when something fails.
 - 🪢 **Folder-loop guard + Skip shortcuts** — detects a source that recurses forever (a Google Drive shortcut pointing back up its own tree) and stops the run early. Flip **Skip shortcuts** on a Drive mapping to ignore shortcuts entirely and copy right through the loop.
 - 🛡️ **Copy, never delete** — transfers are additive; the destination is never pruned. Destinations are containment-checked so a mapping can never escape the library root.
+- 📦 **Self-contained** — rclone ships *inside* the app (a Tauri sidecar), so there's nothing else to install. One-line setup via Homebrew or `curl | sh`.
 
 > 🔒 **Local & private.** rclone's OAuth token stays on your machine (`~/.config/rclone/rclone.conf`); Trawl has no accounts, cloud, or telemetry.
 
@@ -52,13 +53,23 @@ Someone shares a Google Drive or pCloud folder by link — models, assets, a pho
 
 ## 🚀 Quick start
 
-**1. Install rclone** (Trawl shells out to it):
+Trawl **bundles rclone** inside the app, so there's nothing else to install.
+
+**macOS — Homebrew (recommended):**
 
 ```bash
-brew install rclone      # macOS · see rclone.org/downloads for Windows/Linux
+brew install --cask kurenn/tap/trawl
 ```
 
-**2. Download Trawl** — grab the latest build for your OS from the [**Releases**](https://github.com/kurenn/trawl/releases/latest) page.
+**macOS / Linux — one-line installer:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kurenn/trawl/main/scripts/install.sh | bash
+```
+
+Both of the above download the app and clear the macOS quarantine for you.
+
+**Or download manually** — grab the latest build for your OS from the [**Releases**](https://github.com/kurenn/trawl/releases/latest) page:
 
 - **macOS** — open the `.dmg` and drag Trawl to **Applications**. It isn't notarized yet, so macOS may say *"Trawl is damaged."* It isn't — clear the download quarantine flag once:
   ```bash
@@ -68,23 +79,27 @@ brew install rclone      # macOS · see rclone.org/downloads for Windows/Linux
 - **Windows** — run the `.msi` or `-setup.exe`. On SmartScreen: **More info → Run anyway**.
 - **Linux** — `.AppImage` (chmod +x and run), `.deb`, or `.rpm`.
 
-**3. Connect** — on first launch, if you're syncing Google Drive and no remote is configured, Trawl shows a **Connect Google Drive** screen. *Connect* runs rclone's OAuth flow in your browser; the token is saved once. (pCloud public links need no connection.)
+On first launch, if you're syncing Google Drive, Trawl shows a **Connect Google Drive** screen — *Connect* runs rclone's OAuth flow in your browser and saves the token once. (pCloud public links need no connection.)
 
 ## 🛠️ Build from source
 
-Requires **Node 20+**, the **Rust** toolchain ([Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)), and **rclone** on your `PATH`.
+Requires **Node 20+** and the **Rust** toolchain ([Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)).
 
 ```bash
 git clone https://github.com/kurenn/trawl.git
 cd trawl
 npm install
 
-npm run dev          # web UI on a simulated backend (http://localhost:1420)
-npm run tauri dev    # full desktop app against real rclone
-npm run tauri build  # → src-tauri/target/release/bundle/ (.dmg, .msi, .AppImage…)
+npm run dev            # web UI on a simulated backend (http://localhost:1420)
+
+# The desktop app bundles rclone as a sidecar — fetch it for your platform once
+# (the build validates its presence). No system rclone needed.
+./scripts/fetch-rclone.sh
+npm run tauri dev      # full desktop app
+npm run tauri build    # → src-tauri/target/release/bundle/ (.dmg, .msi, .AppImage…)
 ```
 
-`npm run dev` runs the whole UI against a built-in **simulation adapter** (fake Drive/pCloud catalog + animated runs), so the interface is fully clickable in a plain browser with no real cloud connection. Run the backend tests with `cd src-tauri && cargo test` (connection-string builder, folder-loop detection).
+`npm run dev` runs the whole UI against a built-in **simulation adapter** (fake Drive/pCloud catalog + animated runs), so the interface is fully clickable in a plain browser with no rclone and no real cloud connection. Run the backend tests with `cd src-tauri && cargo test` (connection-string builder, folder-loop detection).
 
 ## 🧱 Architecture
 

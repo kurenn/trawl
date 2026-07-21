@@ -36,7 +36,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            build-essential curl wget file \
+            build-essential curl wget file unzip \
             libxdo-dev libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
@@ -44,5 +44,9 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+      # tauri-build validates `externalBin` at compile time, so the bundled
+      # rclone sidecar must exist even for `cargo test`.
+      - name: Fetch rclone sidecar
+        run: scripts/fetch-rclone.sh x86_64-unknown-linux-gnu
       # Tests live in the lib crate; --lib skips the bundle (no built frontend needed).
       - run: cargo test --lib --manifest-path src-tauri/Cargo.toml
