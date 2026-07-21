@@ -1,0 +1,24 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#37dccb"/>
+      <stop offset="1" stop-color="#22c2ae"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- app tile -->
+  <rect x="48" y="48" width="928" height="928" rx="220" fill="url(#tile)"/>
+  <rect x="48" y="48" width="928" height="928" rx="220" fill="url(#sheen)"/>
+
+  <!-- 2x2 mappings grid glyph (Trawl brand mark) -->
+  <g transform="translate(272,272) scale(32)">
+    <rect x="1"   y="1"   width="5.5" height="5.5" rx="1.4" fill="#0c1512"/>
+    <rect x="8.5" y="1"   width="5.5" height="5.5" rx="1.4" fill="#0c1512" opacity="0.55"/>
+    <rect x="1"   y="8.5" width="5.5" height="5.5" rx="1.4" fill="#0c1512" opacity="0.55"/>
+    <rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1.4" fill="#0c1512"/>
+  </g>
+</svg>
