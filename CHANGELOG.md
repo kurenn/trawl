@@ -4,6 +4,10 @@ All notable changes to Trawl are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the release
 workflow pulls the matching `## [version]` section into each GitHub Release.
 
+## [0.2.0]
+
+- **In-app updater** — Trawl now checks GitHub Releases on launch and the sidebar shows an **"↑ Update to vX"** button that downloads, verifies, installs, and relaunches into the new version. Also surfaces checking / up-to-date / re-check states. (This is the first release that can auto-update; installs from here forward stay current in-app.)
+
 ## [0.1.0]
 
 Initial release.

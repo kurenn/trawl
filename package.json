@@ -1,7 +1,7 @@
 {
   "name": "trawl",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Sync Google Drive & pCloud folders by link into a local library (rclone-backed). Tauri v2 + React/TS.",
   "license": "MIT",
   "type": "module",
