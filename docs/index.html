@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trawl — pull shared cloud folders into a local library</title>
+<meta name="description" content="A small desktop app that syncs Google Drive & pCloud folders by link into a local folder using rclone. Additive copy only — it never deletes at the destination." />
+<meta property="og:title" content="Trawl — pull shared cloud folders into a local library" />
+<meta property="og:description" content="Paste a Drive or pCloud folder link, pick a local destination, and pull. Additive copy, never deletes. Built with Tauri + rclone." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="https://kurenn.github.io/trawl/dashboard.jpg" />
+<link rel="icon" href="logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-app: #1b1d23;
+    --bg-deep: #15171c;
+    --bg-input: #0f1115;
+    --bg-card: #212430;
+    --bg-btn: #2b2e39;
+    --bd-subtle: #25282f;
+    --bd-card: #2c2f3a;
+    --bd-btn: #363a46;
+    --tx: #e7e9ee;
+    --tx2: #cfd2da;
+    --tx-muted: #7b808c;
+    --tx-faint: #565b66;
+    --accent: #2dd4bf;
+    --accent-ink: #0c1512;
+    --accent-10: rgba(45, 212, 191, 0.1);
+    --accent-18: rgba(45, 212, 191, 0.18);
+    --accent-25: rgba(45, 212, 191, 0.25);
+    --amber: #f59e0b;
+    --red: #f43f5e;
+    --font-ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-app);
+    color: var(--tx);
+    font-family: var(--font-ui);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .accent { color: var(--accent); }
+  .mono { font-family: var(--font-mono); }
+
+  /* subtle top glow */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(680px 340px at 50% -8%, rgba(45,212,191,0.10), transparent 70%);
+  }
+  main, header, footer { position: relative; z-index: 1; }
+
+  /* ---- nav ---- */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(21, 23, 28, 0.82);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--bd-subtle);
+  }
+  .nav { display: flex; align-items: center; gap: 22px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand img { width: 26px; height: 26px; border-radius: 7px; }
+  .brand small { color: var(--tx-faint); font-weight: 400; font-size: 12px; }
+  .nav .links { display: flex; gap: 22px; margin-left: auto; }
+  .nav .links a { color: var(--tx-muted); font-size: 14px; }
+  .nav .links a:hover { color: var(--tx); }
+  @media (max-width: 720px) { .nav .links { display: none; } }
+
+  /* ---- buttons ---- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: inherit; font-size: 14px; font-weight: 600;
+    border-radius: 8px; padding: 9px 15px; cursor: pointer;
+    border: 1px solid var(--bd-btn); background: var(--bg-btn); color: var(--tx);
+    transition: transform .08s ease, border-color .15s ease, background .15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); border-color: #48505f; }
+  .btn-primary {
+    background: var(--accent); color: var(--accent-ink); border-color: transparent;
+  }
+  .btn-primary:hover { background: #45e0cd; }
+  .btn-ghost { background: var(--accent-10); border-color: var(--accent-25); color: var(--accent); }
+  .btn-sm { padding: 6px 11px; font-size: 13px; }
+
+  /* ---- hero ---- */
+  .hero { padding: 78px 0 30px; text-align: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--accent); font-weight: 500;
+    background: var(--accent-10); border: 1px solid var(--accent-25);
+    padding: 5px 12px; border-radius: 999px; margin-bottom: 22px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  h1 {
+    font-size: clamp(34px, 6vw, 58px); line-height: 1.05; font-weight: 700;
+    letter-spacing: -0.03em; margin: 0 auto 18px; max-width: 14ch;
+  }
+  .lede { font-size: clamp(16px, 2.4vw, 19px); color: var(--tx-muted); max-width: 60ch; margin: 0 auto 30px; }
+  .lede b { color: var(--tx2); font-weight: 600; }
+  .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .meta-strip { margin-top: 24px; color: var(--tx-faint); font-size: 13px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .meta-strip span { white-space: nowrap; }
+  .meta-strip .sep { color: #313641; }
+
+  /* command pill */
+  .cmd {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--bg-input); border: 1px solid var(--bd-card);
+    border-radius: 8px; padding: 8px 8px 8px 14px;
+    font-family: var(--font-mono); font-size: 13px; color: var(--tx2);
+  }
+  .cmd .prompt { color: var(--accent); }
+  .cmd button {
+    font-family: inherit; font-size: 11px; color: var(--tx-muted);
+    background: var(--bg-btn); border: 1px solid var(--bd-btn); border-radius: 6px;
+    padding: 5px 9px; cursor: pointer;
+  }
+  .cmd button:hover { color: var(--tx); }
+
+  /* ---- window frame ---- */
+  .shot { margin: 44px auto 0; max-width: 940px; }
+  .window {
+    border: 1px solid var(--bd-card); border-radius: 12px; overflow: hidden;
+    background: var(--bg-deep);
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  }
+  .titlebar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid var(--bd-subtle); background: var(--bg-deep); }
+  .titlebar i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .titlebar .r { background: #ff5f57; } .titlebar .y { background: #febc2e; } .titlebar .g { background: #28c840; }
+  .titlebar .t { margin-left: 8px; font-size: 12px; color: var(--tx-faint); font-family: var(--font-mono); }
+  .window img { width: 100%; }
+
+  /* ---- sections ---- */
+  section { padding: 72px 0; }
+  .sec-head { text-align: center; max-width: 60ch; margin: 0 auto 44px; }
+  .sec-head h2 { font-size: clamp(26px, 4vw, 38px); letter-spacing: -0.025em; line-height: 1.1; }
+  .sec-head p { color: var(--tx-muted); margin-top: 12px; font-size: 16px; }
+  .divider { border: none; border-top: 1px solid var(--bd-subtle); }
+
+  /* feature grid */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--bd-card); border-radius: 12px;
+    padding: 22px; transition: border-color .15s ease, transform .1s ease;
+  }
+  .card:hover { border-color: #3a3f4d; transform: translateY(-2px); }
+  .card .ico {
+    width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center;
+    background: var(--accent-10); border: 1px solid var(--accent-25); margin-bottom: 14px;
+    font-size: 19px;
+  }
+  .card h3 { font-size: 16.5px; font-weight: 600; margin-bottom: 7px; letter-spacing: -0.01em; }
+  .card p { color: var(--tx-muted); font-size: 14px; }
+  .card code { font-family: var(--font-mono); color: var(--accent); background: var(--accent-10); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+
+  /* spotlight two-col */
+  .split { display: grid; grid-template-columns: 1fr 1.15fr; gap: 44px; align-items: center; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; gap: 28px; } }
+  .split h2 { font-size: clamp(24px, 3.5vw, 34px); letter-spacing: -0.025em; line-height: 1.12; margin-bottom: 16px; }
+  .split p { color: var(--tx-muted); font-size: 15.5px; margin-bottom: 14px; }
+  .tick { list-style: none; display: grid; gap: 10px; margin-top: 18px; }
+  .tick li { display: flex; gap: 10px; color: var(--tx2); font-size: 14.5px; }
+  .tick li::before { content: "→"; color: var(--accent); font-weight: 600; }
+
+  /* steps */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
+  @media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+  .step { background: var(--bg-card); border: 1px solid var(--bd-card); border-radius: 12px; padding: 24px; }
+  .step .n { font-family: var(--font-mono); font-size: 13px; color: var(--accent); border: 1px solid var(--accent-25); background: var(--accent-10); width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; margin-bottom: 14px; }
+  .step h3 { font-size: 16px; margin-bottom: 6px; }
+  .step p { color: var(--tx-muted); font-size: 14px; }
+
+  /* install block */
+  .install { max-width: 760px; margin: 0 auto; display: grid; gap: 14px; }
+  .ib { background: var(--bg-card); border: 1px solid var(--bd-card); border-radius: 12px; padding: 18px 20px; }
+  .ib .lbl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tx-muted); margin-bottom: 10px; }
+  .ib .lbl b { color: var(--tx); font-weight: 600; font-size: 14px; }
+  .ib .tag { font-size: 11px; color: var(--accent); border: 1px solid var(--accent-25); background: var(--accent-10); padding: 2px 8px; border-radius: 999px; margin-left: auto; }
+  .code {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg-input); border: 1px solid var(--bd-card); border-radius: 8px;
+    padding: 12px 12px 12px 15px; font-family: var(--font-mono); font-size: 13px; color: var(--tx2);
+    overflow-x: auto;
+  }
+  .code .prompt { color: var(--accent); user-select: none; }
+  .code span.c { white-space: nowrap; }
+  .code button {
+    margin-left: auto; flex: none; font-family: inherit; font-size: 11px; color: var(--tx-muted);
+    background: var(--bg-btn); border: 1px solid var(--bd-btn); border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  .code button:hover { color: var(--tx); }
+  .note { color: var(--tx-faint); font-size: 13px; text-align: center; margin-top: 8px; }
+
+  /* open-source strip */
+  .os { text-align: center; }
+  .os .links { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+
+  /* footer */
+  footer { border-top: 1px solid var(--bd-subtle); padding: 34px 0; color: var(--tx-faint); font-size: 13px; }
+  .foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .foot .brand small { color: var(--tx-faint); }
+  .foot .fl { margin-left: auto; display: flex; gap: 18px; }
+  .foot a:hover { color: var(--tx2); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top"><img src="logo.png" alt="Trawl" /> Trawl <small>by spoolr.io</small></a>
+    <nav class="links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#opensource">Open source</a>
+      <a href="https://github.com/kurenn/trawl">GitHub</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="#install">Download</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow"><span class="dot"></span> rclone-powered · Tauri v2 desktop app</span>
+      <h1>Pull shared cloud folders into a local library.</h1>
+      <p class="lede">A small desktop app that syncs <b>Google Drive &amp; pCloud folders by link</b> into a local folder using <b>rclone</b>. Paste a link, pick a destination, and pull — <b>additive copy only, it never deletes at the destination.</b></p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#install">↓ Download for macOS</a>
+        <span class="cmd"><span class="prompt">$</span><span id="brew">brew install --cask kurenn/tap/trawl</span><button data-copy="brew">Copy</button></span>
+      </div>
+      <div class="meta-strip">
+        <span>macOS · Windows · Linux</span><span class="sep">·</span>
+        <span>MIT licensed</span><span class="sep">·</span>
+        <span>rclone bundled in</span><span class="sep">·</span>
+        <span>No accounts, no telemetry</span>
+      </div>
+      <div class="shot">
+        <div class="window">
+          <div class="titlebar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="t">Trawl — Sync Mappings</span></div>
+          <img src="dashboard.jpg" alt="Trawl syncing folders with live progress" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Everything a pull-only sync should be.</h2>
+        <p>Point Trawl at a shared folder, pair it with a local destination, and it keeps a current copy — without ever touching what's already there.</p>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="ico">🔗</div>
+          <h3>Sync by link</h3>
+          <p>Paste a Google Drive folder URL / ID (or pick from <b>Shared with me</b>), or a pCloud public link. Trawl roots rclone right at it.</p>
+        </div>
+        <div class="card">
+          <div class="ico">📊</div>
+          <h3>Live progress</h3>
+          <p>The Rust backend streams parsed rclone stats to the UI — percent, bytes, files, speed, and ETA, for every run.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🔄</div>
+          <h3>Auto-sync</h3>
+          <p>Opt any mapping into background syncs on an interval. <code>rclone copy</code> is incremental, so idle runs are cheap.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🛡️</div>
+          <h3>Copy, never delete</h3>
+          <p>Transfers are additive — the destination is never pruned. Every path is containment-checked so a mapping can't escape your library root.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🪢</div>
+          <h3>Folder-loop proof</h3>
+          <p>Detects a source that recurses forever, and a <b>Skip shortcuts</b> toggle copies straight through Google Drive shortcut loops.</p>
+        </div>
+        <div class="card">
+          <div class="ico">📦</div>
+          <h3>Self-contained</h3>
+          <p>rclone ships <b>inside</b> the app — nothing else to install. One command via Homebrew or <code>curl | sh</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- SPOTLIGHT -->
+  <section id="spotlight">
+    <div class="wrap split">
+      <div>
+        <h2>Paste a link. Pick a folder. Pull.</h2>
+        <p>The whole flow is one screen: a by-link source on the left, your local library on the right. No remote paths to memorize, no two-way sync to fear.</p>
+        <ul class="tick">
+          <li>Drive folder links, "Shared with me", and pCloud public links</li>
+          <li>Browse and create local destinations inline</li>
+          <li>Cancel, retry, and delete any mapping — with a clear last-run status</li>
+          <li>A one-time Google connect; the token never leaves your machine</li>
+        </ul>
+      </div>
+      <div class="window">
+        <div class="titlebar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="t">Trawl — New sync mapping</span></div>
+        <img src="new-mapping.jpg" alt="Pairing a Drive folder with a local destination" />
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>From shared link to local copy in three steps.</h2>
+        <p>Trawl only ever pulls — there's no push, no two-way sync, and no delete-at-destination.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <h3>Paste a folder link</h3>
+          <p>Drop in a Google Drive or pCloud folder URL. Trawl extracts the folder and lists what's inside.</p>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <h3>Pick a local destination</h3>
+          <p>Choose (or create) a folder under your library root. It's captured as an absolute path, so it never drifts.</p>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <h3>Pull — additively</h3>
+          <p>Trawl runs <code>rclone copy</code> and streams live progress. New and changed files come down; nothing is ever deleted.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- INSTALL -->
+  <section id="install">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Install Trawl.</h2>
+        <p>rclone is bundled inside the app, so there's nothing else to set up.</p>
+      </div>
+      <div class="install">
+        <div class="ib">
+          <div class="lbl"><b>Homebrew</b> — macOS <span class="tag">recommended</span></div>
+          <div class="code"><span class="prompt">$</span><span class="c" id="c1">brew install --cask kurenn/tap/trawl</span><button data-copy="c1">Copy</button></div>
+        </div>
+        <div class="ib">
+          <div class="lbl"><b>One-line installer</b> — macOS &amp; Linux</div>
+          <div class="code"><span class="prompt">$</span><span class="c" id="c2">curl -fsSL https://raw.githubusercontent.com/kurenn/trawl/main/scripts/install.sh | bash</span><button data-copy="c2">Copy</button></div>
+        </div>
+        <div class="ib">
+          <div class="lbl"><b>Direct download</b> — all platforms</div>
+          <div class="cta-row" style="justify-content:flex-start; margin-top:2px;">
+            <a class="btn btn-ghost btn-sm" href="https://github.com/kurenn/trawl/releases/latest">macOS .dmg</a>
+            <a class="btn btn-ghost btn-sm" href="https://github.com/kurenn/trawl/releases/latest">Windows .msi</a>
+            <a class="btn btn-ghost btn-sm" href="https://github.com/kurenn/trawl/releases/latest">Linux .AppImage</a>
+          </div>
+        </div>
+      </div>
+      <p class="note">Not notarized yet — Homebrew and the installer clear the macOS quarantine for you. On first launch, connect Google Drive when prompted (pCloud links need no connection).</p>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- OPEN SOURCE -->
+  <section id="opensource" class="os">
+    <div class="wrap">
+      <div class="sec-head" style="margin-bottom:0;">
+        <h2>Free, open source, and yours to keep.</h2>
+        <p>No accounts, no cloud, no telemetry. Trawl only ever reads from the source and writes to your disk.</p>
+      </div>
+      <div class="links">
+        <a class="btn btn-sm" href="https://github.com/kurenn/trawl">★ Star on GitHub</a>
+        <a class="btn btn-sm" href="https://github.com/kurenn/trawl/blob/main/CHANGELOG.md">Changelog</a>
+        <a class="btn btn-sm" href="https://github.com/kurenn/trawl/blob/main/LICENSE">License (MIT)</a>
+        <a class="btn btn-sm" href="https://buymeacoffee.com/kurito">☕ Buy me a coffee</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <a class="brand" href="#top"><img src="logo.png" alt="" style="width:22px;height:22px;border-radius:6px;" /> Trawl <small>· MIT © Spoolr</small></a>
+    <div class="fl">
+      <a href="https://github.com/kurenn/trawl">GitHub</a>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll("button[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var el = document.getElementById(b.getAttribute("data-copy"));
+      var text = el.textContent.trim();
+      navigator.clipboard.writeText(text).then(function () {
+        var old = b.textContent; b.textContent = "Copied ✓";
+        setTimeout(function () { b.textContent = old; }, 1400);
+      });
+    });
+  });
+</script>
+</body>
+</html>
