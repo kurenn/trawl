@@ -62,11 +62,14 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
+        .run(|_app_handle, _event| {
             // macOS: clicking the Dock icon after close-to-tray re-opens the
             // window (otherwise a hidden-only window is hard to get back).
-            if let tauri::RunEvent::Reopen { .. } = event {
-                if let Some(w) = app_handle.get_webview_window("main") {
+            // `Reopen` is a macOS-only `RunEvent` variant, so this handler must
+            // be gated — matching it unconditionally fails to compile elsewhere.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                if let Some(w) = _app_handle.get_webview_window("main") {
                     let _ = w.show();
                     let _ = w.unminimize();
                     let _ = w.set_focus();
