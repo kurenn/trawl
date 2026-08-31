@@ -34,7 +34,6 @@ import type {
   MappingCard,
   MappingStatus,
   NewMapping,
-  RunLogLine,
   RunProgress,
   RunView,
   Settings,
@@ -71,6 +70,9 @@ interface InternalStagedItem {
 
 const TrawlContext = createContext<UseTrawl | null>(null);
 
+/** How long an "couldn't open that folder" message stays on screen. */
+const OPEN_FOLDER_ERROR_MS = 6000;
+
 /* ---------------------------------------------------------------------------
    Provider
    --------------------------------------------------------------------------- */
@@ -89,6 +91,15 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
   const [libraryRoot, setLibraryRoot] = useState<string>("");
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  // Transient "couldn't open that folder" message, scoped to the mapping whose
+  // button was clicked so it renders next to the thing that failed.
+  const [openFolderError, setOpenFolderError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
+  const openFolderErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // ---- In-app updater ----
   const [update, setUpdate] = useState<UpdateState>({
@@ -298,12 +309,12 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
                   progress.status === "succeeded" ? progress.filesTotal : null,
                 last_bytes:
                   progress.status === "succeeded" ? progress.bytesTotal : null,
+                // The engine states the reason explicitly — don't re-derive it
+                // from the log, whose closing line summarises rather than
+                // explains and which is length-capped anyway.
                 last_error:
                   progress.status === "failed"
-                    ? progress.log
-                        .filter((l: RunLogLine) => l.kind === "error")
-                        .map((l: RunLogLine) => l.text)
-                        .slice(-1)[0] ?? "Sync failed"
+                    ? progress.error ?? "Sync failed"
                     : null,
               };
             }
@@ -331,6 +342,16 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       unsubState?.();
     };
   }, []);
+
+  // Don't let a pending "couldn't open that folder" timeout fire after unmount.
+  useEffect(
+    () => () => {
+      if (openFolderErrorTimer.current !== null) {
+        clearTimeout(openFolderErrorTimer.current);
+      }
+    },
+    [],
+  );
 
   // Keep refs read by the once-mounted run subscription fresh.
   useEffect(() => {
@@ -441,6 +462,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
         speed: 0,
         etaSec: 0,
         log: [],
+        error: null,
       });
       return next;
     });
@@ -466,6 +488,26 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
       apiRef.current?.loadMappings().then((maps) => setMappings(maps)).catch(() => {});
+    });
+  }, []);
+
+  // Reveal a mapping's destination folder in Finder/Explorer. Failures (folder
+  // never created, volume unmounted) surface inline on the card and clear
+  // themselves, so a one-off miss doesn't linger as if it were run state.
+  const openFolder = useCallback((mappingId: string) => {
+    const api = apiRef.current;
+    if (!api) return;
+    setOpenFolderError(null);
+    api.openMappingFolder(mappingId).catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : String(e);
+      setOpenFolderError({ id: mappingId, message });
+      if (openFolderErrorTimer.current !== null) {
+        clearTimeout(openFolderErrorTimer.current);
+      }
+      openFolderErrorTimer.current = setTimeout(
+        () => setOpenFolderError(null),
+        OPEN_FOLDER_ERROR_MS,
+      );
     });
   }, []);
 
@@ -1372,6 +1414,9 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
         syncNow: () => startRun(m.id),
         cancelNow: () => apiRef.current?.cancelSync(lp?.runId ?? -1).catch(console.error),
         openRun: () => openRun(m.id),
+        openFolder: () => openFolder(m.id),
+        openFolderError:
+          openFolderError?.id === m.id ? openFolderError.message : "",
         askDelete: () => setPendingDelete(m.id),
         confirmDelete: () => {
           const api = apiRef.current;
@@ -1388,6 +1433,8 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     pendingDelete,
     startRun,
     openRun,
+    openFolder,
+    openFolderError,
     settings,
     toggleAuto,
     toggleSkipShortcuts,
@@ -1451,8 +1498,11 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
         setActiveRun(null);
         setView("dashboard");
       },
+      openFolder: () => openFolder(ar.mappingId),
+      openFolderError:
+        openFolderError?.id === ar.mappingId ? openFolderError.message : "",
     };
-  }, [activeRun, startRun]);
+  }, [activeRun, startRun, openFolder, openFolderError]);
 
   /* -------------------------------------------------------------------------
      Assemble UseTrawl

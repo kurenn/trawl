@@ -243,6 +243,14 @@ class SimApi implements Api {
     return subpath in NAS || this.created.includes(subpath);
   }
 
+  async openMappingFolder(id: string): Promise<void> {
+    // A browser tab can't reach the filesystem — reject the way the real
+    // backend would, so the UI's error path is exercisable in the sim.
+    const mapping = this.mappings.find((m) => m.id === id);
+    if (!mapping) throw new Error("That mapping no longer exists.");
+    throw new Error("Opening folders is only available in the desktop app.");
+  }
+
   // ---------- mappings persistence ----------
 
   async loadMappings(): Promise<Mapping[]> {
@@ -366,6 +374,7 @@ class SimApi implements Api {
           "meta",
         ),
       ],
+      error: null,
     };
 
     // Track mutable run state alongside the active interval
@@ -424,6 +433,8 @@ class SimApi implements Api {
           status: "failed",
           bytesDone,
           log: newLog,
+          error:
+            "403 abuse-flagged file — enable Acknowledge abuse on this mapping",
         };
         this.emit(r.snapshot);
         clearInterval(r.intervalId);

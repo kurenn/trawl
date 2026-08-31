@@ -81,6 +81,10 @@ const tauriApiImpl: Api = {
     return invoke<boolean>("local_path_exists", { subpath });
   },
 
+  openMappingFolder(id: string): Promise<void> {
+    return invoke<void>("open_mapping_folder", { id });
+  },
+
   // ---------- mappings persistence ----------
 
   loadMappings(): Promise<Mapping[]> {

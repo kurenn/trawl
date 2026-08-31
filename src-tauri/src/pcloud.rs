@@ -495,6 +495,7 @@ fn failed_progress(run_id: i64, mapping: &Mapping, src: &str, dest: &str, msg: &
             text: msg.to_string(),
             kind: RunLogKind::Error,
         }],
+        error: Some(msg.to_string()),
     }
 }
 
@@ -710,34 +711,43 @@ fn sync_blocking(
             ),
             kind: RunLogKind::Meta,
         }],
+        error: None,
     };
     let _ = app.emit(RUN_UPDATE_EVENT, &progress);
 
     // Pre-flight: catch the common "destination volume isn't mounted" case with
     // a clear message before the cryptic create_dir_all permission error.
     if let Err(msg) = crate::store::check_dest_available(&dest_abs) {
-        push_log(&mut progress.log, RunLogLine { text: msg, kind: RunLogKind::Error });
+        push_log(&mut progress.log, RunLogLine { text: msg.clone(), kind: RunLogKind::Error });
         progress.status = MappingStatus::Failed;
+        progress.error = Some(msg);
         let _ = app.emit(RUN_UPDATE_EVENT, &progress);
         return progress;
     }
     // Ensure destination root exists.
     if let Err(e) = std::fs::create_dir_all(&dest_abs) {
+        let msg = format!("Cannot create destination folder “{}”: {}", dest_abs.display(), e);
         push_log(
             &mut progress.log,
             RunLogLine {
-                text: format!("Cannot create destination folder “{}”: {}", dest_abs.display(), e),
+                text: msg.clone(),
                 kind: RunLogKind::Error,
             },
         );
         progress.status = MappingStatus::Failed;
+        progress.error = Some(msg);
         let _ = app.emit(RUN_UPDATE_EVENT, &progress);
         return progress;
     }
 
     // --- d. Per-file download loop -------------------------------------------
     let mut last_emit = Instant::now();
-    let mut had_errors = false;
+    // Count of files that failed, so the summary can say how bad it was.
+    let mut error_count: usize = 0;
+    // Freshest failure reason, captured as each error is logged. The run log is
+    // a capped ring, so re-reading it at finalize can miss errors that a later
+    // burst of successes evicted.
+    let mut last_cause: Option<String> = None;
     let run_start = Instant::now();
 
     for file in &all_files {
@@ -752,7 +762,7 @@ fn sync_blocking(
         let local_path = match crate::store::resolve_dest(&dest_abs, &file.relative_path) {
             Ok(p) => p,
             Err(e) => {
-                had_errors = true;
+                error_count += 1;
                 push_log(
                     &mut progress.log,
                     RunLogLine {
@@ -763,6 +773,7 @@ fn sync_blocking(
                         kind: RunLogKind::Error,
                     },
                 );
+                last_cause = progress.log.last().map(|l| l.text.clone());
                 // Still count this file as "done" so progress doesn't stall.
                 progress.files_done += 1;
                 progress.bytes_done += file.size as i64;
@@ -795,7 +806,7 @@ fn sync_blocking(
         let download_url = match get_download_url(&resolved_host, &code, file.fileid) {
             Ok(u) => u,
             Err(e) => {
-                had_errors = true;
+                error_count += 1;
                 push_log(
                     &mut progress.log,
                     RunLogLine {
@@ -803,6 +814,7 @@ fn sync_blocking(
                         kind: RunLogKind::Error,
                     },
                 );
+                last_cause = progress.log.last().map(|l| l.text.clone());
                 progress.files_done += 1;
                 // Don't add to bytes_done — file wasn't received.
                 continue;
@@ -812,7 +824,7 @@ fn sync_blocking(
         // Ensure parent directory exists.
         if let Some(parent) = local_path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                had_errors = true;
+                error_count += 1;
                 push_log(
                     &mut progress.log,
                     RunLogLine {
@@ -823,6 +835,7 @@ fn sync_blocking(
                         kind: RunLogKind::Error,
                     },
                 );
+                last_cause = progress.log.last().map(|l| l.text.clone());
                 progress.files_done += 1;
                 continue;
             }
@@ -850,7 +863,9 @@ fn sync_blocking(
                 break;
             }
             DownloadOutcome::Error => {
-                had_errors = true;
+                error_count += 1;
+                // download_file logged the reason just now, so it's the last line.
+                last_cause = progress.log.last().map(|l| l.text.clone());
             }
         }
     }
@@ -860,13 +875,26 @@ fn sync_blocking(
 
     let final_status = if was_cancelled {
         MappingStatus::Cancelled
-    } else if had_errors {
+    } else if error_count > 0 {
         MappingStatus::Failed
     } else {
         MappingStatus::Succeeded
     };
 
     progress.status = final_status;
+
+    // Why the run failed, in one self-contained sentence: how many files failed
+    // plus the most recent reason, captured above as each failure happened.
+    // This is both the closing log line and the mapping's persisted
+    // `last_error`, which the dashboard card shows with no run log beside it.
+    if matches!(final_status, MappingStatus::Failed) {
+        let files_word = if error_count == 1 { "file" } else { "files" };
+        progress.error = Some(match last_cause {
+            Some(cause) if error_count == 1 => format!("1 file failed — {cause}"),
+            Some(cause) => format!("{error_count} files failed — last error: {cause}"),
+            None => format!("{error_count} {files_word} failed — see the run log for details."),
+        });
+    }
 
     let (summary_text, summary_kind) = match final_status {
         MappingStatus::Succeeded => (
@@ -879,7 +907,7 @@ fn sync_blocking(
         ),
         MappingStatus::Cancelled => ("Run cancelled.".to_string(), RunLogKind::Notice),
         MappingStatus::Failed => (
-            "Run failed — see errors above.".to_string(),
+            progress.error.clone().unwrap_or_default(),
             RunLogKind::Error,
         ),
         _ => (String::new(), RunLogKind::Info),

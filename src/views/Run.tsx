@@ -288,6 +288,23 @@ export default function Run() {
             {r.isDone && (
               <div style={{ display: "flex", gap: 10 }}>
                 <button
+                  onClick={r.openFolder}
+                  title="Open this folder on your computer"
+                  style={{
+                    fontFamily: "inherit",
+                    fontSize: 12.5,
+                    fontWeight: 500,
+                    color: "var(--accent)",
+                    background: "var(--accent-10)",
+                    border: "1px solid var(--accent-25)",
+                    borderRadius: 7,
+                    padding: "9px 16px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Open folder
+                </button>
+                <button
                   onClick={r.retry}
                   style={{
                     fontFamily: "inherit",
@@ -327,6 +344,19 @@ export default function Run() {
               </span>
             )}
           </div>
+
+          {/* Couldn't reveal the folder — transient, cleared by the store. */}
+          {r.openFolderError && (
+            <div
+              style={{
+                fontSize: 11.5,
+                color: "var(--status-amber)",
+                marginTop: 11,
+              }}
+            >
+              {r.openFolderError}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -144,6 +144,10 @@ export interface RunProgress {
   speed: number; // bytes/sec
   etaSec: number;
   log: RunLogLine[]; // full log; view shows the last ~13 lines
+  /** Why the run failed, as a self-contained sentence (null unless failed).
+   *  The authoritative source for a mapping's `last_error` — the dashboard
+   *  shows it without the log beside it, so it never points at "errors above". */
+  error: string | null;
 }
 
 /* ---------------------------------------------------------------------------
@@ -204,6 +208,9 @@ export interface Api {
   createLocalFolder(subpath: string): Promise<{ ok: boolean; error?: string }>;
   /** Does <libraryRoot>/<subpath> already exist on disk? */
   localPathExists(subpath: string): Promise<boolean>;
+  /** Reveal a mapping's destination folder in the OS file manager. Rejects
+   *  with a user-facing message if the folder is missing or unmounted. */
+  openMappingFolder(id: string): Promise<void>;
 
   // --- mappings persistence ---
   loadMappings(): Promise<Mapping[]>;
@@ -320,6 +327,10 @@ export interface RunView {
   cancel: () => void;
   retry: () => void;
   back: () => void;
+  /** Reveal this run's destination folder in the OS file manager. */
+  openFolder: () => void;
+  /** Why the last openFolder() attempt failed; "" when there's nothing to say. */
+  openFolderError: string;
 }
 
 /** Mapping shaped for a dashboard card. */
@@ -348,6 +359,10 @@ export interface MappingCard extends Mapping {
   cancelNow: () => void;
   /** Open the Run view (live log) for this mapping's in-flight sync. */
   openRun: () => void;
+  /** Reveal this mapping's destination folder in the OS file manager. */
+  openFolder: () => void;
+  /** Why the last openFolder() attempt failed; "" when there's nothing to say. */
+  openFolderError: string;
   askDelete: () => void;
   confirmDelete: () => void;
   cancelDelete: () => void;

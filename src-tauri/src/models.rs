@@ -173,6 +173,12 @@ pub struct RunProgress {
     pub speed: f64,
     pub eta_sec: f64,
     pub log: Vec<RunLogLine>,
+    /// Why the run failed, as a self-contained sentence (None unless
+    /// `status == Failed`). This is the single source of truth for the
+    /// mapping's `last_error`: the dashboard card shows it with no run log
+    /// beside it, so it must never point at context the reader can't see.
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 /// Result of createLocalFolder. == TS `{ ok, error? }`.
