@@ -286,7 +286,8 @@ export default function Dashboard() {
                   </span>
                 </div>
 
-                {/* Mono path line */}
+                {/* Mono path line — the destination doubles as the shortcut to
+                    reveal that folder on disk. */}
                 <div
                   style={{
                     fontFamily: "var(--font-mono)",
@@ -296,7 +297,24 @@ export default function Dashboard() {
                     wordBreak: "break-all",
                   }}
                 >
-                  {card.srcLabel}&nbsp;&nbsp;&rarr;&nbsp;&nbsp;{card.destDisplay}
+                  {card.srcLabel}&nbsp;&nbsp;&rarr;&nbsp;&nbsp;
+                  <span
+                    onClick={card.openFolder}
+                    title="Open this folder on your computer"
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget as HTMLSpanElement;
+                      el.style.color = "var(--accent)";
+                      el.style.textDecoration = "underline";
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget as HTMLSpanElement;
+                      el.style.color = "";
+                      el.style.textDecoration = "";
+                    }}
+                  >
+                    {card.destDisplay}
+                  </span>
                 </div>
 
                 {/* Progress (while syncing) or last-run meta line */}
@@ -381,6 +399,33 @@ export default function Dashboard() {
                   alignItems: "center",
                 }}
               >
+                {/* Open the destination folder on this machine */}
+                <button
+                  onClick={card.openFolder}
+                  title="Open this folder on your computer"
+                  aria-label="Open folder"
+                  style={{
+                    fontFamily: "inherit",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--status-grey)",
+                    background: "var(--bg-button-neutral)",
+                    border: "1px solid var(--border-button)",
+                    borderRadius: 6,
+                    padding: "6px 9px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+                    <path
+                      d="M1.3 4.2C1.3 3.3 2 2.6 2.9 2.6H5.2L6.6 4.1H12.1C13 4.1 13.7 4.8 13.7 5.7V11C13.7 11.9 13 12.6 12.1 12.6H2.9C2 12.6 1.3 11.9 1.3 11V4.2Z"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                    />
+                  </svg>
+                </button>
+
                 {/* Auto toggle */}
                 <button
                   onClick={card.toggleAuto}
@@ -532,6 +577,20 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+
+            {/* Couldn't reveal the folder (never synced, volume unmounted…).
+                Transient — the store clears it after a few seconds. */}
+            {card.openFolderError && (
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--status-amber)",
+                  marginTop: 11,
+                }}
+              >
+                {card.openFolderError}
+              </div>
+            )}
 
             {/* Error block — only for the most recent COMPLETED run that failed.
                 While a run is in flight the error is cleared (see store), so this

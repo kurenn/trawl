@@ -475,9 +475,10 @@ pub async fn run_sync(
                 speed: 0.0,
                 eta_sec: 0.0,
                 log: vec![RunLogLine {
-                    text: e,
+                    text: e.clone(),
                     kind: RunLogKind::Error,
                 }],
+                error: Some(e),
             };
             let _ = app.emit(RUN_UPDATE_EVENT, &progress);
             return progress;
@@ -510,9 +511,10 @@ pub async fn run_sync(
             speed: 0.0,
             eta_sec: 0.0,
             log: vec![RunLogLine {
-                text: msg,
+                text: msg.clone(),
                 kind: RunLogKind::Error,
             }],
+            error: Some(msg),
         };
         let _ = app.emit(RUN_UPDATE_EVENT, &progress);
         return progress;
@@ -563,7 +565,8 @@ pub async fn run_sync(
                 files_total: 0,
                 speed: 0.0,
                 eta_sec: 0.0,
-                log: vec![RunLogLine { text: msg, kind: RunLogKind::Error }],
+                log: vec![RunLogLine { text: msg.clone(), kind: RunLogKind::Error }],
+                error: Some(msg),
             };
             let _ = app.emit(RUN_UPDATE_EVENT, &progress);
             return progress;
@@ -607,6 +610,7 @@ pub async fn run_sync(
             text: format!("Starting copy: {} → {}", src_label, dest_str),
             kind: RunLogKind::Meta,
         }],
+        error: None,
     };
 
     let _ = app.emit(RUN_UPDATE_EVENT, &progress);
@@ -710,6 +714,13 @@ pub async fn run_sync(
     };
 
     // ---------- finalize status ----------
+    // Why this run failed, in one self-contained sentence. It becomes both the
+    // closing error line in the run log and the mapping's persisted
+    // `last_error`, so it must never lean on surrounding context — the card
+    // shows it alone, and push_log caps the log at MAX_LOG_LINES, so earlier
+    // lines may be gone even in the run view.
+    let mut failure_reason: Option<String> = None;
+
     // `was_cancelled` is authoritative: cancel() set it BEFORE the stream ended.
     // A cancel that races in after normal completion (child already removed)
     // leaves was_cancelled == false, so a finished run is never mislabeled.
@@ -720,43 +731,27 @@ pub async fn run_sync(
         MappingStatus::Failed
     } else {
         match exit_status {
-            None => MappingStatus::Failed,
+            None => {
+                failure_reason = Some(
+                    "rclone ended without reporting an exit status — it was killed or crashed."
+                        .to_string(),
+                );
+                MappingStatus::Failed
+            }
             Some(status) if status.success() && !had_errors && max_errors == 0 => {
                 MappingStatus::Succeeded
             }
             Some(status) => {
-            // Check for 403 abuse-flagged in collected errors
-            let stderr_tail = error_lines.join("\n");
-            if is_abuse_flagged(&stderr_tail) {
-                push_log(
-                    &mut progress.log,
-                    RunLogLine {
-                        text:
-                            "403 abuse-flagged file — enable Acknowledge abuse on this mapping"
-                                .to_string(),
-                        kind: RunLogKind::Error,
-                    },
-                );
-            } else if !error_lines.is_empty() {
-                push_log(
-                    &mut progress.log,
-                    RunLogLine {
-                        text: friendly_error(&stderr_tail),
-                        kind: RunLogKind::Error,
-                    },
-                );
-            } else {
-                push_log(
-                    &mut progress.log,
-                    RunLogLine {
-                        text: format!(
-                            "rclone exited with code {}",
-                            status.code().unwrap_or(-1)
-                        ),
-                        kind: RunLogKind::Error,
-                    },
-                );
-            }
+                // Check for 403 abuse-flagged in collected errors
+                let stderr_tail = error_lines.join("\n");
+                failure_reason = Some(if is_abuse_flagged(&stderr_tail) {
+                    "403 abuse-flagged file — enable Acknowledge abuse on this mapping"
+                        .to_string()
+                } else if !error_lines.is_empty() {
+                    friendly_error(&stderr_tail)
+                } else {
+                    format!("rclone exited with code {}", status.code().unwrap_or(-1))
+                });
                 MappingStatus::Failed
             }
         }
@@ -780,7 +775,23 @@ pub async fn run_sync(
 
     progress.status = final_status;
 
-    // Summary line
+    if matches!(final_status, MappingStatus::Failed) {
+        // The folder-loop case gets a short reason of its own; the full
+        // explanation is already in the log above.
+        if loop_culprit.is_some() {
+            failure_reason = Some(format!(
+                "Folder loop in source (“{}”) — fix or exclude it, then re-sync.",
+                loop_culprit.as_deref().unwrap_or_default()
+            ));
+        }
+        // A failed run always carries *some* reason — never a bare pointer to
+        // errors the reader may not have.
+        failure_reason
+            .get_or_insert_with(|| "Run failed — rclone reported no detail.".to_string());
+    }
+    progress.error = failure_reason.clone();
+
+    // Summary line — the closing entry in the run log.
     let summary = match final_status {
         MappingStatus::Succeeded => format!(
             "Done — {} files, {} transferred",
@@ -788,13 +799,7 @@ pub async fn run_sync(
             format_bytes(progress.bytes_done)
         ),
         MappingStatus::Cancelled => "Run cancelled.".to_string(),
-        // Keep the loop reason as the *last* error line so it's what gets
-        // persisted to mappings.json as `last_error`.
-        MappingStatus::Failed if loop_culprit.is_some() => format!(
-            "Folder loop in source (“{}”) — fix or exclude it, then re-sync.",
-            loop_culprit.as_deref().unwrap_or_default()
-        ),
-        MappingStatus::Failed => "Run failed — see errors above.".to_string(),
+        MappingStatus::Failed => failure_reason.unwrap_or_default(),
         _ => String::new(),
     };
     if !summary.is_empty() {
