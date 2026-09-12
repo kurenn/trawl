@@ -568,6 +568,23 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const toggleProtectLocalEdits = useCallback(
+    (id: string) => {
+      const api = apiRef.current;
+      if (!api) return;
+      const current = mappingsRef.current.find((m) => m.id === id);
+      if (!current) return;
+      api
+        .setMappingProtectLocalEdits(id, !current.protect_local_edits)
+        .then((updated) => {
+          setMappings(updated);
+          mappingsRef.current = updated;
+        })
+        .catch(console.error);
+    },
+    [],
+  );
+
   const toggleSkipShortcuts = useCallback(
     (id: string) => {
       const api = apiRef.current;
@@ -1301,6 +1318,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       dest_path: item.destPath,
       acknowledge_abuse: true,
       skip_shortcuts: false,
+      protect_local_edits: false,
     }));
     api
       .saveMappings(newMappings)
@@ -1411,6 +1429,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
         progressLabel,
         toggleAuto: () => toggleAuto(m.id),
         toggleSkipShortcuts: () => toggleSkipShortcuts(m.id),
+        toggleProtectLocalEdits: () => toggleProtectLocalEdits(m.id),
         syncNow: () => startRun(m.id),
         cancelNow: () => apiRef.current?.cancelSync(lp?.runId ?? -1).catch(console.error),
         openRun: () => openRun(m.id),
@@ -1438,6 +1457,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     settings,
     toggleAuto,
     toggleSkipShortcuts,
+    toggleProtectLocalEdits,
     liveProgress,
   ]);
 

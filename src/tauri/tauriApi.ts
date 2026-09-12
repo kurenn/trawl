@@ -107,6 +107,16 @@ const tauriApiImpl: Api = {
     return invoke<Mapping[]>("set_mapping_skip_shortcuts", { id, skip });
   },
 
+  setMappingProtectLocalEdits(
+    id: string,
+    protect: boolean,
+  ): Promise<Mapping[]> {
+    return invoke<Mapping[]>("set_mapping_protect_local_edits", {
+      id,
+      protect,
+    });
+  },
+
   // ---------- updates ----------
 
   async checkForUpdate(): Promise<UpdateInfo | null> {

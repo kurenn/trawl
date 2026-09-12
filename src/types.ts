@@ -51,6 +51,9 @@ export interface Mapping {
   /** Pass `skip_shortcuts=true` to the Drive backend: rclone ignores Google
    *  Drive shortcuts, breaking shortcut-induced folder loops. Gdrive-only. */
   skip_shortcuts: boolean;
+  /** Run rclone with `--update` + `--backup-dir` so a file edited locally is
+   *  never silently overwritten by the source copy. Off = strict replica. */
+  protect_local_edits: boolean;
   /** Last-run summary (the dashboard card reads these). */
   last_status: MappingStatus;
   last_at: string | null; // ISO timestamp, or null = never
@@ -221,6 +224,10 @@ export interface Api {
   setMappingAutoSync(id: string, auto: boolean): Promise<Mapping[]>;
   /** Toggle a mapping's skip-shortcuts flag; returns the full updated list. */
   setMappingSkipShortcuts(id: string, skip: boolean): Promise<Mapping[]>;
+  setMappingProtectLocalEdits(
+    id: string,
+    protect: boolean,
+  ): Promise<Mapping[]>;
 
   // --- updates ---
   /** Check the release endpoint for a newer version. Resolves to update info
@@ -261,6 +268,7 @@ export interface NewMapping {
   dest_path: string;
   acknowledge_abuse: boolean;
   skip_shortcuts: boolean;
+  protect_local_edits: boolean;
 }
 
 /* ---------------------------------------------------------------------------
@@ -355,6 +363,8 @@ export interface MappingCard extends Mapping {
   toggleAuto: () => void;
   /** Flip this mapping's skip-shortcuts flag (Drive-only; no-op UI for pCloud). */
   toggleSkipShortcuts: () => void;
+  /** Flip this mapping's protect-local-edits flag. */
+  toggleProtectLocalEdits: () => void;
   syncNow: () => void;
   cancelNow: () => void;
   /** Open the Run view (live log) for this mapping's in-flight sync. */
