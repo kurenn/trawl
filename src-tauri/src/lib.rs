@@ -58,6 +58,7 @@ pub fn run() {
             commands::delete_mapping,
             commands::set_mapping_auto_sync,
             commands::set_mapping_skip_shortcuts,
+            commands::set_mapping_protect_local_edits,
             commands::get_settings,
             commands::set_settings,
             commands::start_sync,

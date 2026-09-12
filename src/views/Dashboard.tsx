@@ -478,6 +478,41 @@ export default function Dashboard() {
                   </button>
                 )}
 
+                {/* Protect-local-edits toggle. Off, the destination is a strict
+                    replica and a file edited in place is silently overwritten on
+                    the next run. On, rclone gets --update (never replace a file
+                    that is newer locally) and --backup-dir (anything it does
+                    replace is moved aside, not destroyed). */}
+                <button
+                  onClick={card.toggleProtectLocalEdits}
+                  title={
+                    card.protect_local_edits
+                      ? "Local edits are protected: files you changed here are never overwritten, and replaced files are kept in .trawl-replaced"
+                      : "Warning: files you edit in this folder are silently overwritten on the next sync"
+                  }
+                  style={{
+                    fontFamily: "inherit",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: card.protect_local_edits
+                      ? "var(--accent)"
+                      : "var(--status-grey)",
+                    background: card.protect_local_edits
+                      ? "var(--accent-10)"
+                      : "var(--bg-button-neutral)",
+                    border: card.protect_local_edits
+                      ? "1px solid var(--accent-25)"
+                      : "1px solid var(--border-button)",
+                    borderRadius: 6,
+                    padding: "6px 11px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {card.protect_local_edits
+                    ? "· Protect edits"
+                    : "Protect edits"}
+                </button>
+
                 {/* Cancel (while syncing) or Sync now / Retry */}
                 {card.running ? (
                   <button

@@ -11,7 +11,7 @@
 //! The subpath follows the colon: "<fs>:<subpath>".
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -412,6 +412,26 @@ struct RcloneStats {
     errors: i64,
 }
 
+/// Where replaced files are parked when a mapping has `protect_local_edits`.
+///
+/// A hidden, timestamped folder beside the destination — NOT inside it, because
+/// rclone rejects a `--backup-dir` that overlaps the destination, and because a
+/// backup folder inside the tree would itself look like content to sync. Being
+/// on the same volume keeps the move a rename instead of a full re-copy.
+///
+/// Returns `None` when the destination has no parent (a filesystem root), where
+/// there is nowhere safe to put it.
+fn backup_dir_for(dest_abs: &Path, run_id: i64) -> Option<PathBuf> {
+    let parent = dest_abs.parent()?;
+    let name = dest_abs.file_name()?.to_string_lossy().into_owned();
+    Some(
+        parent
+            .join(".trawl-replaced")
+            .join(name)
+            .join(format!("run-{run_id}")),
+    )
+}
+
 /// A running rclone job: the child process plus a cancel flag set by `cancel()`.
 /// Keeping the flag alongside the child lets `run_sync` distinguish a real
 /// cancellation from a normal completion that merely raced with a late cancel.
@@ -432,6 +452,14 @@ const MAX_LOG_LINE_CHARS: usize = 400;
 
 /// Throttle: minimum gap between emitted progress events (milliseconds).
 const EMIT_INTERVAL_MS: u64 = 300;
+
+/// Stats ticks (~1s each, from `--stats 1s`) between destination liveness
+/// checks while a run is in flight. See the `dest_lost` guard in `run_sync`.
+const DEST_CHECK_EVERY_TICKS: u32 = 30;
+
+/// A liveness stat that takes longer than this means the mount is wedged, not
+/// merely slow — a hung SMB/NFS share blocks `stat` indefinitely.
+const DEST_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Run `rclone copy` for a single mapping, streaming progress events to the
 /// Tauri frontend via the RUN_UPDATE_EVENT channel.
@@ -528,19 +556,47 @@ pub async fn run_sync(
     //     --stats-log-level NOTICE → stats appear in JSON log stream
     //     --create-empty-src-dirs → mirror empty directories
     //     -v                    → verbose — includes per-file Copied/Failed notices
+    let mut args: Vec<String> = vec![
+        "copy".into(),
+        src_label.clone(),
+        dest_str.clone(),
+        "--use-json-log".into(),
+        "--stats".into(),
+        "1s".into(),
+        "--stats-log-level".into(),
+        "NOTICE".into(),
+        "--create-empty-src-dirs".into(),
+        "-v".into(),
+    ];
+
+    // ---------- protect local edits ----------
+    // Default behaviour makes the destination a strict replica: a file edited in
+    // place differs from the source, and "differs" is what triggers a
+    // re-download, so the edit is destroyed silently with nothing to recover.
+    // Two flags together close that hole:
+    //   --update     → never replace a file that is NEWER at the destination,
+    //                  which is exactly the shape of a local edit.
+    //   --backup-dir → if a file IS replaced (the source genuinely changed and
+    //                  is newer), move the old copy aside instead of
+    //                  overwriting it. This covers the case --update cannot.
+    // The backup dir MUST live outside the destination tree or rclone refuses
+    // to run, so it goes in a hidden sibling folder on the same volume — same
+    // filesystem means rclone renames rather than re-copies.
+    if mapping.protect_local_edits {
+        if let Some(backup) = backup_dir_for(&dest_abs, run_id) {
+            args.push("--update".into());
+            args.push("--backup-dir".into());
+            args.push(backup.display().to_string());
+        } else {
+            // No usable sibling (dest is a filesystem root) — --update alone
+            // still protects edits; only the replaced-by-newer-source case
+            // loses its safety net.
+            args.push("--update".into());
+        }
+    }
+
     let mut child = match tokio::process::Command::new(rclone_bin())
-        .args([
-            "copy",
-            &src_label,
-            &dest_str,
-            "--use-json-log",
-            "--stats",
-            "1s",
-            "--stats-log-level",
-            "NOTICE",
-            "--create-empty-src-dirs",
-            "-v",
-        ])
+        .args(&args)
         .stderr(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null()) // rclone copy sends everything to stderr with --use-json-log
         .spawn()
@@ -622,6 +678,12 @@ pub async fn run_sync(
     // Folder-loop guard: set to the repeated folder name when a source cycle is
     // detected (see runaway_component), which then aborts the run.
     let mut loop_culprit: Option<String> = None;
+    // Destination-lost guard: set when the volume disappears mid-run, which then
+    // aborts the run. Pre-flight `check_dest_available` is not enough — a share
+    // that drops *during* a run leaves rclone reading an empty destination, so it
+    // re-queues the entire source and re-downloads files that are already there.
+    let mut dest_lost: Option<String> = None;
+    let mut ticks_since_dest_check: u32 = 0;
 
     while let Ok(Some(line)) = lines.next_line().await {
         let parsed: RcloneJsonLine = match serde_json::from_str(&line) {
@@ -645,6 +707,41 @@ pub async fn run_sync(
             progress.speed = stats.speed;
             progress.eta_sec = stats.eta.unwrap_or(0.0);
             max_errors = max_errors.max(stats.errors);
+
+            // ---------- destination liveness ----------
+            // Only on stats ticks, so this costs one stat per ~30s. A wedged
+            // mount blocks `stat` forever, hence the timeout — a check that
+            // cannot complete IS the failure we are looking for.
+            ticks_since_dest_check += 1;
+            if ticks_since_dest_check >= DEST_CHECK_EVERY_TICKS {
+                ticks_since_dest_check = 0;
+                let probe = dest_abs.clone();
+                let verdict = tokio::time::timeout(
+                    DEST_CHECK_TIMEOUT,
+                    tokio::task::spawn_blocking(move || crate::store::check_dest_available(&probe)),
+                )
+                .await;
+                let lost = match verdict {
+                    Ok(Ok(Err(msg))) => Some(msg),
+                    Err(_) => Some(format!(
+                        "Destination stopped responding — \u{201c}{}\u{201d} is unreachable. \
+                         Reconnect it and sync again.",
+                        dest_str
+                    )),
+                    // Join error (blocking task panicked) or a healthy check.
+                    Ok(Err(_)) | Ok(Ok(Ok(()))) => None,
+                };
+                if let Some(msg) = lost {
+                    dest_lost = Some(msg);
+                    let mut guard = jobs.lock().await;
+                    if let Some(job) = guard.get_mut(&run_id) {
+                        if let Some(child) = job.child.as_mut() {
+                            let _ = child.start_kill();
+                        }
+                    }
+                    break;
+                }
+            }
         }
 
         // ---------- folder-loop guard ----------
@@ -726,6 +823,11 @@ pub async fn run_sync(
     // leaves was_cancelled == false, so a finished run is never mislabeled.
     let final_status = if was_cancelled {
         MappingStatus::Cancelled
+    } else if let Some(msg) = &dest_lost {
+        // We killed rclone on purpose after the destination volume vanished.
+        // Report it as the mount problem it is, not as an rclone crash.
+        failure_reason = Some(msg.clone());
+        MappingStatus::Failed
     } else if loop_culprit.is_some() {
         // We killed rclone on purpose after detecting a source folder loop.
         MappingStatus::Failed
@@ -756,6 +858,22 @@ pub async fn run_sync(
             }
         }
     };
+
+    // Detailed, actionable log line for the lost-destination case. Explains why
+    // the run was stopped early rather than left to re-copy the whole source.
+    if let Some(msg) = &dest_lost {
+        push_log(
+            &mut progress.log,
+            RunLogLine {
+                text: format!(
+                    "Stopped: {} Nothing was deleted — the copy was halted before it could \
+                     re-transfer files that are already on the destination.",
+                    msg
+                ),
+                kind: RunLogKind::Error,
+            },
+        );
+    }
 
     // Detailed, actionable log line for the loop case (shown in the run log).
     if let Some(culprit) = &loop_culprit {
@@ -1036,6 +1154,28 @@ mod tests {
     fn runaway_component_tolerates_a_few_repeats_below_threshold() {
         // A folder name repeating up to 4× is fine — only a runaway loop trips it.
         assert_eq!(runaway_component("a/a/a/a/leaf.txt"), None);
+    }
+
+    #[test]
+    fn backup_dir_sits_beside_the_destination_never_inside_it() {
+        let dest = PathBuf::from("/Volumes/stl/Yosh Studios/July Giga Tier 2026");
+        let b = backup_dir_for(&dest, 42).expect("dest has a parent");
+        // rclone refuses a --backup-dir that overlaps the destination, and a
+        // backup inside the tree would itself get treated as syncable content.
+        assert!(!b.starts_with(&dest), "backup dir must not be inside dest: {b:?}");
+        assert_eq!(
+            b,
+            PathBuf::from(
+                "/Volumes/stl/Yosh Studios/.trawl-replaced/July Giga Tier 2026/run-42"
+            )
+        );
+        // Same volume, so rclone moves rather than re-copies.
+        assert!(b.starts_with("/Volumes/stl"));
+    }
+
+    #[test]
+    fn backup_dir_is_none_at_a_filesystem_root() {
+        assert!(backup_dir_for(Path::new("/"), 1).is_none());
     }
 
     #[test]

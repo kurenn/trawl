@@ -482,6 +482,15 @@ pub fn set_mapping_skip_shortcuts(
 }
 
 #[tauri::command]
+pub fn set_mapping_protect_local_edits(
+    state: tauri::State<AppState>,
+    id: String,
+    protect: bool,
+) -> Result<Vec<Mapping>, String> {
+    store::set_mapping_protect_local_edits(&state.mappings_file, &id, protect)
+}
+
+#[tauri::command]
 pub async fn cancel_sync(
     state: tauri::State<'_, AppState>,
     run_id: i64,

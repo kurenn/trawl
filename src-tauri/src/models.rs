@@ -70,6 +70,17 @@ pub struct Mapping {
     /// mappings.json files (without this field) loadable.
     #[serde(default)]
     pub skip_shortcuts: bool,
+    /// Protect local edits: run rclone with `--update` (never replace a file
+    /// that is newer at the destination) plus `--backup-dir` (a file that IS
+    /// replaced is moved aside instead of overwritten).
+    ///
+    /// Without this, the destination is a strict replica: editing a file in
+    /// place makes it differ from the source, and "differs" is exactly what
+    /// triggers a re-download — the edit is silently destroyed on the next run,
+    /// with no backup and nothing to recover. `#[serde(default)]` keeps older
+    /// mappings.json files (without this field) loadable.
+    #[serde(default)]
+    pub protect_local_edits: bool,
     pub last_status: MappingStatus,
     pub last_at: Option<String>,
     pub last_files: Option<i64>,
@@ -96,6 +107,8 @@ pub struct NewMapping {
     pub acknowledge_abuse: bool,
     #[serde(default)]
     pub skip_shortcuts: bool,
+    #[serde(default)]
+    pub protect_local_edits: bool,
 }
 
 /// One lazy-tree node. == TS `FolderNode` (camelCase: hasChildren).

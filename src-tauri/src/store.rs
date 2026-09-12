@@ -153,30 +153,78 @@ pub fn resolve_dest(library_root: &Path, subpath: &str) -> Result<PathBuf, Strin
     Ok(candidate)
 }
 
-/// Verify a destination is reachable BEFORE trying to create it. Catches the
-/// common "the external/network volume isn't mounted" case — otherwise the user
-/// gets a cryptic `create_dir_all` "Permission denied" (the app can't create a
-/// `/Volumes/<name>` mount point, nor a top-level dir under `/`).
+/// True when `p` is a filesystem mount point — i.e. it sits on a different
+/// device than its parent. Unmounting frequently leaves an empty
+/// `/Volumes/<name>` directory behind on the boot disk; that leftover shares the
+/// root device, so this correctly reports it as *not* mounted.
+#[cfg(unix)]
+fn is_mount_point(p: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(meta) = fs::metadata(p) else {
+        return false;
+    };
+    match p.parent() {
+        // A different device than the parent == a mount lives here.
+        Some(parent) => match fs::metadata(parent) {
+            Ok(parent_meta) => meta.dev() != parent_meta.dev(),
+            // Parent unreadable but `p` stats fine — treat `p` as a mount root
+            // rather than blocking a destination we can actually reach.
+            Err(_) => true,
+        },
+        None => true, // "/" is always a mount point
+    }
+}
+
+#[cfg(not(unix))]
+fn is_mount_point(p: &Path) -> bool {
+    // On Windows a volume is a drive letter or UNC root; there is no leftover
+    // mount-point directory to mistake for a live volume, so existence is the
+    // only signal available.
+    p.exists()
+}
+
+/// The volume root a destination lives on, when it is an explicitly mounted
+/// volume (`/Volumes/<name>` on macOS). `None` for paths on the boot volume,
+/// which is always mounted by definition.
+fn mounted_volume_root(dest_abs: &Path) -> Option<PathBuf> {
+    let rest = dest_abs.strip_prefix("/Volumes").ok()?;
+    let name = rest.components().next()?;
+    Some(Path::new("/Volumes").join(name.as_os_str()))
+}
+
+/// Verify a destination is reachable BEFORE trying to create it, and again
+/// periodically while a run is in flight (see `rclone::run_sync`).
+///
+/// `exists()` alone is NOT a sufficient test for a mounted volume. macOS often
+/// leaves an empty `/Volumes/<name>` directory behind after an unclean unmount
+/// (a dropped SMB/network share, a yanked drive). That leftover is a plain
+/// directory on the *boot disk*, so `create_dir_all` + rclone happily write the
+/// entire library onto the internal drive instead of the external one — and
+/// rclone, seeing an empty destination, re-queues every file in the source.
+/// Comparing devices with the parent distinguishes a live mount from the husk.
 pub fn check_dest_available(dest_abs: &Path) -> Result<(), String> {
+    if let Some(vol) = mounted_volume_root(dest_abs) {
+        if !is_mount_point(&vol) {
+            let name = vol
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| vol.display().to_string());
+            return Err(format!(
+                "Destination unavailable — the volume \u{201c}{name}\u{201d} isn't mounted. Connect it and sync again."
+            ));
+        }
+        return Ok(());
+    }
+
     if dest_abs.exists() {
         return Ok(());
     }
-    let existing = deepest_existing_ancestor(dest_abs);
-    if existing == Path::new("/Volumes") || existing == Path::new("/") {
-        let vol = dest_abs
-            .strip_prefix("/Volumes")
-            .ok()
-            .and_then(|p| p.components().next())
-            .map(|c| c.as_os_str().to_string_lossy().into_owned());
-        return Err(match vol {
-            Some(v) => format!(
-                "Destination unavailable — the volume \u{201c}{v}\u{201d} isn't mounted. Connect it and sync again."
-            ),
-            None => format!(
-                "Destination unavailable — can't create \u{201c}{}\u{201d}.",
-                dest_abs.display()
-            ),
-        });
+    if deepest_existing_ancestor(dest_abs) == Path::new("/") {
+        return Err(format!(
+            "Destination unavailable — can't create \u{201c}{}\u{201d}.",
+            dest_abs.display()
+        ));
     }
     Ok(())
 }
@@ -490,6 +538,7 @@ pub fn save_new_mappings(
             dest_path: nm.dest_path.clone(),
             acknowledge_abuse: nm.acknowledge_abuse,
             skip_shortcuts: nm.skip_shortcuts,
+            protect_local_edits: nm.protect_local_edits,
             enabled: true,
             auto_sync: false,
             last_status: MappingStatus::Idle,
@@ -593,4 +642,93 @@ pub fn set_mapping_skip_shortcuts(
 
     write_mappings(file, &mappings)?;
     Ok(mappings)
+}
+
+/// Finds the mapping with the given `id`, sets its `protect_local_edits` flag,
+/// writes the full list atomically, and returns the updated Vec.
+/// If the `id` is not found the list is written unchanged and returned as-is.
+pub fn set_mapping_protect_local_edits(
+    file: &Path,
+    id: &str,
+    protect: bool,
+) -> Result<Vec<Mapping>, String> {
+    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    let mut mappings = load_mappings(file);
+
+    if let Some(m) = mappings.iter_mut().find(|m| m.id == id) {
+        m.protect_local_edits = protect;
+    }
+
+    write_mappings(file, &mappings)?;
+    Ok(mappings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mounted_volume_root_extracts_the_volume() {
+        assert_eq!(
+            mounted_volume_root(Path::new("/Volumes/stl/Yosh Studios/July Giga Tier 2026")),
+            Some(PathBuf::from("/Volumes/stl"))
+        );
+        // The volume root itself is still a volume root.
+        assert_eq!(
+            mounted_volume_root(Path::new("/Volumes/stl")),
+            Some(PathBuf::from("/Volumes/stl"))
+        );
+    }
+
+    #[test]
+    fn mounted_volume_root_ignores_boot_disk_paths() {
+        assert_eq!(mounted_volume_root(Path::new("/Users/me/Library")), None);
+        // "/Volumes" with no volume name names no volume.
+        assert_eq!(mounted_volume_root(Path::new("/Volumes")), None);
+    }
+
+    #[test]
+    fn is_mount_point_distinguishes_a_mount_from_a_plain_directory() {
+        assert!(is_mount_point(Path::new("/")), "/ is always a mount point");
+
+        // A directory we create ourselves shares its parent's device, which is
+        // exactly the shape of the empty husk left behind by an unclean unmount.
+        let husk = std::env::temp_dir().join("trawl_mount_probe_plain_dir");
+        let _ = fs::remove_dir_all(&husk);
+        fs::create_dir_all(&husk).expect("create probe dir");
+        assert!(!is_mount_point(&husk));
+        let _ = fs::remove_dir_all(&husk);
+    }
+
+    /// An unmounted volume must never be reported as writable.
+    ///
+    /// Note this covers the *absent* `/Volumes/<name>` case only. The dangerous
+    /// variant — an empty leftover directory at `/Volumes/<name>` after an
+    /// unclean unmount, which the old `exists()` check waved through — cannot be
+    /// staged here because creating a directory under `/Volumes` needs root.
+    /// `is_mount_point_distinguishes_a_mount_from_a_plain_directory` exercises
+    /// the device comparison that actually rejects it.
+    #[test]
+    fn check_dest_available_rejects_an_unmounted_volume() {
+        let err = check_dest_available(Path::new(
+            "/Volumes/trawl_not_a_real_volume/Yosh Studios/July Giga Tier 2026",
+        ))
+        .expect_err("an unmounted volume must not be writable");
+        assert!(err.contains("isn't mounted"), "unexpected message: {err}");
+        assert!(
+            err.contains("trawl_not_a_real_volume"),
+            "the message must name the volume: {err}"
+        );
+    }
+
+    #[test]
+    fn check_dest_available_accepts_a_boot_disk_path() {
+        let dir = std::env::temp_dir().join("trawl_dest_probe");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create probe dir");
+        // Both an existing path and a not-yet-created child of it are fine.
+        assert!(check_dest_available(&dir).is_ok());
+        assert!(check_dest_available(&dir.join("new/nested")).is_ok());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

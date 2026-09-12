@@ -311,6 +311,16 @@ class SimApi implements Api {
     return [...this.mappings];
   }
 
+  async setMappingProtectLocalEdits(
+    id: string,
+    protect: boolean,
+  ): Promise<Mapping[]> {
+    this.mappings = this.mappings.map((m) =>
+      m.id === id ? { ...m, protect_local_edits: protect } : m,
+    );
+    return [...this.mappings];
+  }
+
   // ---------- updates ----------
 
   async checkForUpdate(): Promise<UpdateInfo | null> {
