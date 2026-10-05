@@ -5,8 +5,7 @@
 //! Everything here that can be pure IS pure ([`systemctl_argv`],
 //! [`render_units`], [`pick_due`]) so it's unit-testable without a real
 //! systemd running. The only impure pieces are [`systemctl`] (runs the real
-//! binary) and the file IO in [`write_units`]/[`remove_units`] — neither is
-//! ever exercised by a test; `main.rs` is the only caller.
+//! binary) and the file IO in [`write_units`]/[`remove_units`].
 
 use std::collections::HashSet;
 use std::fs;
@@ -155,14 +154,29 @@ pub struct UnitFiles {
     pub auto_timer: String,
 }
 
+/// Escapes a raw value for use inside a double-quoted systemd unit-file
+/// token: doubles `\` and `"` (systemd's quoting escape chars, so the value
+/// can't break out of or terminate the quotes early) and doubles `%`
+/// (systemd's specifier escape char — otherwise e.g. a `%h` in a path or
+/// PATH would be expanded as a specifier instead of taken literally). Does
+/// not add the surrounding quotes itself.
+fn escape_systemd_value(raw: &str) -> String {
+    raw.replace('\\', "\\\\").replace('"', "\\\"").replace('%', "%%")
+}
+
 /// Quotes `exe` for use as (part of) a systemd `ExecStart=` line: wraps it in
-/// double quotes (so an embedded space stays one argument) and doubles any
-/// `%` (systemd's specifier escape char — otherwise e.g. a `%h` in a path
-/// would be expanded as a specifier instead of taken literally).
+/// double quotes (so an embedded space stays one argument) with its content
+/// escaped per [`escape_systemd_value`].
 fn quote_exe(exe: &Path) -> String {
-    let raw = exe.to_string_lossy();
-    let escaped = raw.replace('%', "%%");
-    format!("\"{escaped}\"")
+    format!("\"{}\"", escape_systemd_value(&exe.to_string_lossy()))
+}
+
+/// Quotes a systemd `Environment=` assignment, e.g. `PATH=<value>`, as a
+/// single double-quoted token so an embedded space in `value` can't split
+/// the assignment. `key` is assumed to need no escaping (it's always a
+/// literal like `PATH`); `value` is escaped per [`escape_systemd_value`].
+fn quote_env(key: &str, value: &str) -> String {
+    format!("\"{key}={}\"", escape_systemd_value(value))
 }
 
 /// Renders the three unit files' contents. Pure: `path_env` (the installing
@@ -170,6 +184,7 @@ fn quote_exe(exe: &Path) -> String {
 /// so this is testable without mutating process state.
 pub fn render_units(exe: &Path, path_env: &str) -> UnitFiles {
     let quoted = quote_exe(exe);
+    let path_assignment = quote_env("PATH", path_env);
 
     let sync_service = format!(
         "[Unit]\n\
@@ -180,16 +195,22 @@ pub fn render_units(exe: &Path, path_env: &str) -> UnitFiles {
          ExecStart={quoted} sync %i\n\
          KillMode=mixed\n\
          TimeoutStopSec=90\n\
-         Environment=PATH={path_env}\n"
+         Environment={path_assignment}\n"
     );
 
+    // Also needed here, not just on trawl-sync@.service: cmd_sync_due uses
+    // rclone (detect_connection) to decide drive_ok, so if rclone is only on
+    // the installing shell's PATH (e.g. ~/.local/bin), the auto-sync timer
+    // needs the same PATH to find it — otherwise every Drive mapping looks
+    // unreachable and gets silently skipped.
     let auto_service = format!(
         "[Unit]\n\
          Description=Trawl auto-sync scheduler\n\
          \n\
          [Service]\n\
          Type=oneshot\n\
-         ExecStart={quoted} sync-due\n"
+         ExecStart={quoted} sync-due\n\
+         Environment={path_assignment}\n"
     );
 
     let auto_timer = "[Unit]\n\
@@ -353,7 +374,11 @@ mod tests {
     #[test]
     fn render_units_content() {
         let exe = Path::new("/opt/100% weird/trawl-cli");
-        let units = render_units(exe, "/usr/bin:/bin");
+        // A PATH with both a space (would split an unquoted assignment) and
+        // a `%` (would be specifier-expanded if not doubled).
+        let path_env = "/usr/bin:/opt/100% weird/bin";
+        let units = render_units(exe, path_env);
+        let expected_path_assignment = "Environment=\"PATH=/usr/bin:/opt/100%% weird/bin\"";
 
         assert!(
             units.sync_service.contains("ExecStart=\"/opt/100%% weird/trawl-cli\" sync %i"),
@@ -362,7 +387,7 @@ mod tests {
         );
         assert!(units.sync_service.contains("KillMode=mixed"), "{}", units.sync_service);
         assert!(units.sync_service.contains("TimeoutStopSec=90"), "{}", units.sync_service);
-        assert!(units.sync_service.contains("Environment=PATH=/usr/bin:/bin"), "{}", units.sync_service);
+        assert!(units.sync_service.contains(expected_path_assignment), "{}", units.sync_service);
         assert!(units.sync_service.contains("Type=exec"), "{}", units.sync_service);
 
         assert!(
@@ -371,6 +396,10 @@ mod tests {
             units.auto_service
         );
         assert!(units.auto_service.contains("Type=oneshot"), "{}", units.auto_service);
+        // F5: trawl-auto.service must carry the same PATH as
+        // trawl-sync@.service, or cmd_sync_due's rclone detection (drive_ok)
+        // silently skips every Drive mapping when rclone is shell-PATH-only.
+        assert!(units.auto_service.contains(expected_path_assignment), "{}", units.auto_service);
 
         assert!(units.auto_timer.contains("OnBootSec=2min"), "{}", units.auto_timer);
         assert!(units.auto_timer.contains("OnUnitActiveSec=5min"), "{}", units.auto_timer);
