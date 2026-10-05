@@ -231,6 +231,16 @@ fn pid_alive(pid: i32) -> bool {
     Path::new(&format!("/proc/{pid}")).exists()
 }
 
+/// This process's own process-group id, read from `/proc/self/stat` field 5
+/// (pgrp). The `comm` field (2) is parenthesized and may itself contain
+/// spaces or parens, so we skip past it by splitting on the *last* `)`.
+fn own_pgid() -> i32 {
+    let stat = fs::read_to_string("/proc/self/stat").unwrap();
+    let after_comm = stat.rsplit_once(')').expect("malformed /proc/self/stat").1;
+    // Fields after comm, space-separated: state(1) ppid(2) pgrp(3) ...
+    after_comm.split_whitespace().nth(2).expect("missing pgrp field").parse().expect("pgrp not a number")
+}
+
 fn load_mappings(path: &Path) -> Vec<Mapping> {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
 }
@@ -427,7 +437,8 @@ fn sigterm_cancels_and_persists_cancelled() {
     let rclone_pid = read_pidfile(&h.pidfile, Duration::from_secs(5));
     assert!(pid_alive(rclone_pid), "fake rclone should be alive before signalling");
 
-    let status_kill = Command::new("kill").args(["-TERM", &child.id().to_string()]).status().unwrap();
+    let status_kill =
+        Command::new("kill").args(["-s", "TERM", &child.id().to_string()]).status().unwrap();
     assert!(status_kill.success());
 
     let status = wait_for_exit(&mut child, Duration::from_secs(10)).expect("trawl-cli should exit after SIGTERM");
@@ -462,9 +473,25 @@ fn sigterm_to_process_group_also_persists_cancelled() {
 
     let rclone_pid = read_pidfile(&h.pidfile, Duration::from_secs(5));
 
-    // Negative pid => signal the whole process group (trawl-cli + rclone).
-    let status_kill =
-        Command::new("kill").args(["-TERM", &format!("-{}", child.id())]).status().unwrap();
+    // `process_group(0)` makes the child the leader of its own new group, so
+    // its pgid equals its pid. Refuse to signal anything that isn't clearly
+    // that child's own group: never our own group, never pid/pgid <= 1 (which
+    // on some `kill` implementations means "every process the caller owns").
+    let child_pgid = child.id() as i32;
+    let my_pgid = own_pgid();
+    assert!(
+        child_pgid > 1 && child_pgid != my_pgid,
+        "refusing to signal pgid {child_pgid} (own pgid {my_pgid})"
+    );
+
+    // `-s TERM -- -<pgid>` (rather than `-TERM -<pgid>`) keeps the negative
+    // pgid unambiguous across `kill` implementations: procps-ng's option
+    // parser can otherwise read a bare negative number as pid -1 ("every
+    // process the caller can signal") instead of "this process group".
+    let status_kill = Command::new("kill")
+        .args(["-s", "TERM", "--", &format!("-{child_pgid}")])
+        .status()
+        .unwrap();
     assert!(status_kill.success());
 
     let status = wait_for_exit(&mut child, Duration::from_secs(10)).expect("trawl-cli should exit");
