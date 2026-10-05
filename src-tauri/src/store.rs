@@ -185,12 +185,36 @@ fn is_mount_point(p: &Path) -> bool {
 }
 
 /// The volume root a destination lives on, when it is an explicitly mounted
-/// volume (`/Volumes/<name>` on macOS). `None` for paths on the boot volume,
-/// which is always mounted by definition.
+/// volume: `/Volumes/<name>` on macOS; `/mnt/<name>`, `/media/<name>`,
+/// `/media/<user>/<name>` or `/run/media/<user>/<name>` on Linux. `None` for
+/// paths on the boot volume, which is always mounted by definition.
 fn mounted_volume_root(dest_abs: &Path) -> Option<PathBuf> {
-    let rest = dest_abs.strip_prefix("/Volumes").ok()?;
-    let name = rest.components().next()?;
-    Some(Path::new("/Volumes").join(name.as_os_str()))
+    let user = std::env::var("USER").ok();
+    volume_root_for_user(dest_abs, user.as_deref())
+}
+
+fn volume_root_for_user(dest_abs: &Path, user: Option<&str>) -> Option<PathBuf> {
+    // `/media` holds either `<name>` (a manual mount) or `<user>/<name>`
+    // (udisks on Debian-likes), so the user segment decides the depth.
+    let in_user_media = user.is_some_and(|u| dest_abs.starts_with(Path::new("/media").join(u)));
+    let (base, depth) = if dest_abs.starts_with("/Volumes") {
+        ("/Volumes", 1)
+    } else if dest_abs.starts_with("/mnt") {
+        ("/mnt", 1)
+    } else if dest_abs.starts_with("/run/media") {
+        ("/run/media", 2)
+    } else if dest_abs.starts_with("/media") {
+        ("/media", if in_user_media { 2 } else { 1 })
+    } else {
+        return None;
+    };
+    let rest: Vec<_> = dest_abs.strip_prefix(base).ok()?.components().take(depth).collect();
+    if rest.len() < depth {
+        return None;
+    }
+    let mut root = PathBuf::from(base);
+    root.extend(rest);
+    Some(root)
 }
 
 /// Verify a destination is reachable BEFORE trying to create it, and again
@@ -685,6 +709,19 @@ mod tests {
         assert_eq!(mounted_volume_root(Path::new("/Users/me/Library")), None);
         // "/Volumes" with no volume name names no volume.
         assert_eq!(mounted_volume_root(Path::new("/Volumes")), None);
+    }
+
+    #[test]
+    fn volume_root_covers_linux_mount_locations() {
+        let root = |p: &str| volume_root_for_user(Path::new(p), Some("me"));
+        assert_eq!(root("/mnt/stl/Yosh Studios"), Some(PathBuf::from("/mnt/stl")));
+        assert_eq!(root("/media/stl/Yosh Studios"), Some(PathBuf::from("/media/stl")));
+        assert_eq!(root("/media/me/stl/Yosh Studios"), Some(PathBuf::from("/media/me/stl")));
+        assert_eq!(root("/run/media/me/stl/x"), Some(PathBuf::from("/run/media/me/stl")));
+        // A base directory alone, or a user dir with no volume, names no volume.
+        assert_eq!(root("/mnt"), None);
+        assert_eq!(root("/run/media/me"), None);
+        assert_eq!(root("/home/me/Trawl"), None);
     }
 
     #[test]

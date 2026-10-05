@@ -248,22 +248,26 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
         // persisted state (triggered when ANY mapping completes) would
         // otherwise downgrade an unrelated in-flight card mid-run. The run's
         // own terminal event sets its final status.
-        const merged = freshMaps.map((fm) => {
-          const cur = mappingsRef.current.find((m) => m.id === fm.id);
-          if (cur && cur.last_status === "running") {
-            return {
-              ...fm,
-              last_status: "running" as MappingStatus,
-              last_at: cur.last_at,
-              last_files: cur.last_files,
-              last_bytes: cur.last_bytes,
-              last_error: cur.last_error,
-            };
-          }
-          return fm;
-        });
-        setMappings(merged);
-        mappingsRef.current = merged;
+        // Merge inside a functional update so it sees a terminal event that
+        // landed during the await above. Reading mappingsRef here instead (it
+        // lags a render behind) re-marked just-finished runs "running", and
+        // nothing ever cleared them.
+        setMappings((prev) =>
+          freshMaps.map((fm) => {
+            const cur = prev.find((m) => m.id === fm.id);
+            if (cur && cur.last_status === "running") {
+              return {
+                ...fm,
+                last_status: "running" as MappingStatus,
+                last_at: cur.last_at,
+                last_files: cur.last_files,
+                last_bytes: cur.last_bytes,
+                last_error: cur.last_error,
+              };
+            }
+            return fm;
+          }),
+        );
         setSettingsState(freshSett);
       });
 
