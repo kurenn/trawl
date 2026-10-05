@@ -51,3 +51,5 @@ jobs:
       # Tests live in the lib crates; --lib skips the bundle (no built frontend needed).
       - run: cargo test --workspace --exclude trawl
       - run: cargo test -p trawl --lib
+      - name: trawl-cli has no GUI deps
+        run: "! cargo tree -p trawl-cli -e normal | grep -Ei 'tauri|gtk|webkit|wry'"

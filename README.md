@@ -100,7 +100,58 @@ npm run tauri dev      # full desktop app
 npm run tauri build    # → src-tauri/target/release/bundle/ (.dmg, .msi, .AppImage…)
 ```
 
-`npm run dev` runs the whole UI against a built-in **simulation adapter** (fake Drive/pCloud catalog + animated runs), so the interface is fully clickable in a plain browser with no rclone and no real cloud connection. Run the backend tests with `cd src-tauri && cargo test` (connection-string builder, folder-loop detection).
+`npm run dev` runs the whole UI against a built-in **simulation adapter** (fake Drive/pCloud catalog + animated runs), so the interface is fully clickable in a plain browser with no rclone and no real cloud connection. Run the backend tests from the repo root with `cargo test --workspace --exclude trawl` (the lib crates — connection-string builder, folder-loop detection, CLI — no built frontend needed) plus `cargo test -p trawl --lib` (the Tauri app's own lib tests).
+
+## 🖥️ Headless / Omarchy
+
+No desktop, no tray icon — just `rclone` and a CLI, for servers and tiling-WM setups (Linux only for the systemd pieces below).
+
+```bash
+cargo install --path crates/trawl-cli
+```
+
+`trawl-cli` shares the desktop app's data (`~/.local/share/com.trawl.app` on Linux) and its run locks — the app and CLI never run the same mapping twice, and `mappings.json` writes are serialized across processes. Add mappings and connect Google Drive from the app first; pCloud links need no connection.
+
+```
+trawl-cli status [--json]   # JSON snapshot of every mapping (see schema below); always JSON either way
+trawl-cli sync <id>         # run one mapping now, blocking, with live progress
+trawl-cli start <id>        # kick off one mapping in the background
+trawl-cli cancel <id>       # stop a run started via systemd/CLI (not one the desktop app started)
+trawl-cli sync-due          # run every mapping that's due, honoring auto-sync interval + per-mapping Auto toggle
+trawl-cli install-units     # write + enable the systemd user units (below)
+trawl-cli uninstall-units   # remove them
+```
+
+Exit codes: `0` ok/cancelled, `1` failure, `2` usage.
+
+`status` prints:
+
+```jsonc
+{
+  "schema": 1,
+  "mappings": [
+    {
+      "id": "...", "name": "...", "provider": "gdrive", // or "pcloud"
+      "src": "...",          // the rclone source label
+      "dest": "...",         // display-only
+      "auto_sync": true, "enabled": true,
+      "last_status": "...",  // one of the mapping statuses
+      "last_at": "2024-01-01T00:00:00Z", // RFC3339, or null
+      "last_files": 12, "last_bytes": 345678, "last_error": null,
+      "running": false,     // a run lock is held, by the app or the CLI
+      "progress": null      // live progress for CLI-driven runs; null for app-driven runs (which show running:true, progress:null)
+    }
+  ]
+}
+```
+
+`status` never touches destination paths.
+
+**systemd (Linux):** `trawl-cli install-units` writes `trawl-sync@.service`, `trawl-auto.service`, and `trawl-auto.timer` (runs every 5 min, starting 2 min after boot) into `~/.config/systemd/user/`, points them at the installed `trawl-cli` binary, records the current `PATH` so `rclone` resolves the same way, and enables the timer. The timer's `sync-due` starts at most 3 concurrent syncs. `trawl-cli uninstall-units` removes them.
+
+> Tip: if you use the systemd timer, you can turn the desktop app's auto-sync off — both are safe to run together thanks to the run lock.
+
+`rclone` resolution: next to the `trawl-cli` binary first, then `PATH`. Google Drive mappings need a configured `gdrive` remote (the app's **Connect** flow); pCloud links need nothing.
 
 ## 🧱 Architecture
 
