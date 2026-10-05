@@ -657,8 +657,8 @@ pub fn persist_run_result(file: &Path, progress: &RunProgress) -> Result<(), Str
 
 /// Reads the persisted library root (`<app_data_dir>/library_root.txt`, else
 /// the default `~/Trawl`), WITHOUT creating any directories — unlike the
-/// app's startup path, which also `create_dir_all`s it. Ported from
-/// `AppState::new` in `src-tauri/src/commands.rs`.
+/// app's startup path, which also `create_dir_all`s it. Ported from the
+/// desktop app's `AppState::new`.
 pub fn read_library_root(app_data_dir: &Path) -> PathBuf {
     let lib_root_txt = app_data_dir.join("library_root.txt");
     if lib_root_txt.exists() {

@@ -1,5 +1,5 @@
-//! Shared auto-sync due-rule, ported 1:1 from `src-tauri/src/scheduler.rs` so
-//! the Tauri app and the CLI agree on exactly when a mapping is due.
+//! Shared auto-sync due-rule, ported 1:1 from the app scheduler so the
+//! desktop app and the CLI agree on exactly when a mapping is due.
 
 use std::time::Duration;
 

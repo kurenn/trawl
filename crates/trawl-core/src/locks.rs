@@ -7,8 +7,8 @@
 //!   OS-level `flock`) and threads within one process (`flock` is scoped to
 //!   an open file description, so two threads opening the lock file
 //!   separately still serialize against each other).
-//! - the run-lock family ([`try_run_lock`], [`is_running`], [`running_count`]):
-//!   one `<run_dir>/<id>.lock` per mapping id gives an exclusive, crash-safe
+//! - the run-lock family ([`try_run_lock`], [`is_running`]): one
+//!   `<run_dir>/<id>.lock` per mapping id gives an exclusive, crash-safe
 //!   "is this mapping syncing right now" flag — crash-safe because the OS
 //!   releases the flock the moment the holding process exits, with nothing to
 //!   clean up. Lock files are never deleted, which avoids an unlink-then-recreate
@@ -106,8 +106,8 @@ pub fn progress_file(run_dir: &Path, id: &str) -> Result<PathBuf, String> {
 /// - `Err`: invalid id, or an IO error opening/locking the file.
 ///
 /// A `WouldBlock` is retried up to 5 times, 20ms apart, before reporting
-/// "held": a probe ([`is_running`] / [`running_count`]) only holds the lock
-/// for microseconds, so a real claim should not lose a race against one.
+/// "held": a probe ([`is_running`]) only holds the lock for microseconds, so
+/// a real claim should not lose a race against one.
 pub fn try_run_lock(run_dir: &Path, id: &str) -> Result<Option<File>, String> {
     if !is_valid_id(id) {
         return Err(format!("Invalid run id: {id:?}"));
@@ -152,11 +152,6 @@ pub fn is_running(run_dir: &Path, id: &str) -> bool {
         Err(TryLockError::WouldBlock) => true,
         Err(TryLockError::Error(_)) => false,
     }
-}
-
-/// Counts how many of `ids` currently have their run lock held.
-pub fn running_count<S: AsRef<str>>(run_dir: &Path, ids: &[S]) -> usize {
-    ids.iter().filter(|id| is_running(run_dir, id.as_ref())).count()
 }
 
 #[cfg(test)]
@@ -240,30 +235,26 @@ mod tests {
         let dir = unique_temp_dir("concurrent_probe");
         fs::create_dir_all(&dir).unwrap();
 
-        // Hold one lock so the prober thread has something real to contend
-        // for, not a vacuous try_lock against a nonexistent file.
-        let probe_target = try_run_lock(&dir, "probe-target").unwrap().unwrap();
-
+        // Prober hammers is_running on the SAME id the main thread is
+        // claiming/releasing, so every try_run_lock below has a real,
+        // momentary contender — not a lock on some other, untouched id.
         let stop = Arc::new(AtomicBool::new(false));
         let stop_probe = Arc::clone(&stop);
         let probe_dir = dir.clone();
         let prober = thread::spawn(move || {
             while !stop_probe.load(Ordering::Relaxed) {
-                let _ = is_running(&probe_dir, "probe-target");
+                let _ = is_running(&probe_dir, "job");
             }
         });
 
-        let mut claims = Vec::new();
         for i in 0..100 {
-            let id = format!("job-{i}");
-            let claimed = try_run_lock(&dir, &id).unwrap();
+            let claimed = try_run_lock(&dir, "job").unwrap();
             assert!(claimed.is_some(), "claim {i} must succeed despite concurrent probing");
-            claims.push(claimed);
+            drop(claimed);
         }
 
         stop.store(true, Ordering::Relaxed);
         prober.join().unwrap();
-        drop(probe_target);
 
         let _ = fs::remove_dir_all(&dir);
     }

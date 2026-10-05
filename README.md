@@ -114,10 +114,10 @@ cargo install --path crates/trawl-cli
 
 ```
 trawl-cli status [--json]   # JSON snapshot of every mapping (see schema below); always JSON either way
-trawl-cli sync <id>         # run one mapping now, blocking, with live progress
+trawl-cli sync <id>         # run one mapping now, blocking; writes live progress to the progress file (read via `status`)
 trawl-cli start <id>        # kick off one mapping in the background
 trawl-cli cancel <id>       # stop a run started via systemd/CLI (not one the desktop app started)
-trawl-cli sync-due          # run every mapping that's due, honoring auto-sync interval + per-mapping Auto toggle
+trawl-cli sync-due          # start every due mapping as a systemd unit (needs `install-units`); honors the master auto-sync switch, the auto-sync interval, and each mapping's own Auto toggle
 trawl-cli install-units     # write + enable the systemd user units (below)
 trawl-cli uninstall-units   # remove them
 ```
@@ -149,7 +149,7 @@ Exit codes: `0` ok/cancelled, `1` failure, `2` usage.
 
 **systemd (Linux):** `trawl-cli install-units` writes `trawl-sync@.service`, `trawl-auto.service`, and `trawl-auto.timer` (runs every 5 min, starting 2 min after boot) into `~/.config/systemd/user/`, points them at the installed `trawl-cli` binary, records the current `PATH` so `rclone` resolves the same way, and enables the timer. The timer's `sync-due` starts at most 3 concurrent syncs. `trawl-cli uninstall-units` removes them.
 
-> Tip: if you use the systemd timer, you can turn the desktop app's auto-sync off — both are safe to run together thanks to the run lock.
+> Tip: the desktop app's Auto pause also pauses the systemd timer (it's the same `auto_sync_enabled` setting). Running both the app and the timer at once is safe regardless — the run lock prevents a mapping from syncing twice at the same time.
 
 `rclone` resolution: next to the `trawl-cli` binary first, then `PATH`. Google Drive mappings need a configured `gdrive` remote (the app's **Connect** flow); pCloud links need nothing.
 
