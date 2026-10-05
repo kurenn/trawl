@@ -716,25 +716,11 @@ fn sync_blocking(
     };
     emit(&progress);
 
-    // Pre-flight: catch the common "destination volume isn't mounted" case with
-    // a clear message before the cryptic create_dir_all permission error.
-    if let Err(msg) = crate::store::check_dest_available(&dest_abs) {
+    // Pre-flight: destination-available check + create_dir_all, bounded so a
+    // wedged mount can't hang the run before it even starts (we're already
+    // running inside spawn_blocking here, so this just calls straight through).
+    if let Err(msg) = crate::rclone::prepare_dest_bounded(&dest_abs) {
         push_log(&mut progress.log, RunLogLine { text: msg.clone(), kind: RunLogKind::Error });
-        progress.status = MappingStatus::Failed;
-        progress.error = Some(msg);
-        emit(&progress);
-        return progress;
-    }
-    // Ensure destination root exists.
-    if let Err(e) = std::fs::create_dir_all(&dest_abs) {
-        let msg = format!("Cannot create destination folder “{}”: {}", dest_abs.display(), e);
-        push_log(
-            &mut progress.log,
-            RunLogLine {
-                text: msg.clone(),
-                kind: RunLogKind::Error,
-            },
-        );
         progress.status = MappingStatus::Failed;
         progress.error = Some(msg);
         emit(&progress);
