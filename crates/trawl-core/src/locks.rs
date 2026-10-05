@@ -157,8 +157,6 @@ pub fn is_running(run_dir: &Path, id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
     use std::thread;
 
     fn unique_temp_dir(label: &str) -> PathBuf {
@@ -234,27 +232,35 @@ mod tests {
     fn try_run_lock_survives_concurrent_probe() {
         let dir = unique_temp_dir("concurrent_probe");
         fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("job.lock");
 
-        // Prober hammers is_running on the SAME id the main thread is
-        // claiming/releasing, so every try_run_lock below has a real,
-        // momentary contender — not a lock on some other, untouched id.
-        let stop = Arc::new(AtomicBool::new(false));
-        let stop_probe = Arc::clone(&stop);
-        let probe_dir = dir.clone();
-        let prober = thread::spawn(move || {
-            while !stop_probe.load(Ordering::Relaxed) {
-                let _ = is_running(&probe_dir, "job");
-            }
-        });
+        // Create the lock file up front so the probe thread can open it
+        // without creating it, exactly like `is_running` does.
+        drop(try_run_lock(&dir, "job").unwrap());
 
-        for i in 0..100 {
+        for i in 0..5 {
+            // Probe thread takes the lock the same way `is_running` does —
+            // open the existing file, `try_lock` it — but holds it for a
+            // fixed ~30ms instead of releasing immediately, so the main
+            // thread is guaranteed to observe it held (a real probe's
+            // microsecond hold is too short to deterministically race).
+            let (tx, rx) = std::sync::mpsc::channel();
+            let probe_path = path.clone();
+            let prober = thread::spawn(move || {
+                let f = OpenOptions::new().read(true).open(&probe_path).unwrap();
+                f.try_lock().unwrap();
+                tx.send(()).unwrap(); // signal: lock is now held
+                thread::sleep(Duration::from_millis(30));
+                // lock released here, when `f` drops
+            });
+
+            rx.recv().unwrap(); // don't claim until the probe definitely holds it
             let claimed = try_run_lock(&dir, "job").unwrap();
-            assert!(claimed.is_some(), "claim {i} must succeed despite concurrent probing");
+            assert!(claimed.is_some(), "claim {i} must succeed despite concurrent hold");
             drop(claimed);
-        }
 
-        stop.store(true, Ordering::Relaxed);
-        prober.join().unwrap();
+            prober.join().unwrap();
+        }
 
         let _ = fs::remove_dir_all(&dir);
     }
