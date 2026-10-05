@@ -12,7 +12,7 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::models::{
     ConnectionPhase, ConnectionState, FolderNode, ListSourceArgs, Mapping, NewMapping, OpResult,
-    Settings, SourceKind, SourceProvider, STATE_CHANGED_EVENT,
+    ProgressFn, Settings, SourceKind, SourceProvider, RUN_UPDATE_EVENT, STATE_CHANGED_EVENT,
 };
 use crate::{pcloud, rclone, store};
 
@@ -371,10 +371,17 @@ pub async fn trigger_sync(app: AppHandle, mapping_id: String) -> Result<i64, Str
         // waits its turn, which is fine — "running" means queued-or-transferring.
         let _permit = semaphore.acquire_owned().await;
 
+        let emit: ProgressFn = Arc::new({
+            let app = app.clone();
+            move |p| {
+                let _ = app.emit(RUN_UPDATE_EVENT, p);
+            }
+        });
+
         let progress = match mapping.source_provider {
             crate::models::SourceProvider::Gdrive => {
                 rclone::run_sync(
-                    app.clone(),
+                    emit,
                     Arc::clone(&jobs),
                     remote,
                     mapping.clone(),
@@ -387,7 +394,7 @@ pub async fn trigger_sync(app: AppHandle, mapping_id: String) -> Result<i64, Str
                 let host = mapping.source_host.clone().unwrap_or_default();
                 let code = mapping.source_id.clone().unwrap_or_default();
                 pcloud::run_pcloud_sync(
-                    app.clone(),
+                    emit,
                     Arc::clone(&jobs),
                     host,
                     code,

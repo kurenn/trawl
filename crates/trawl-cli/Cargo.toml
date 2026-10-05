@@ -1,0 +1,19 @@
+[package]
+name = "trawl-cli"
+version = "0.3.0"
+description = "Headless CLI for the Trawl sync engine"
+authors = ["Spoolr"]
+edition = "2021"
+license = "MIT"
+
+[[bin]]
+name = "trawl-cli"
+path = "src/main.rs"
+
+[dependencies]
+trawl-core = { path = "../trawl-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "signal", "process", "io-util", "time", "sync", "macros"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"

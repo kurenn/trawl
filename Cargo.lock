@@ -4336,7 +4336,6 @@ version = "0.3.0"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
- "serde",
  "serde_json",
  "tauri",
  "tauri-build",
@@ -4344,6 +4343,30 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-process",
  "tauri-plugin-updater",
+ "tokio",
+ "trawl-core",
+]
+
+[[package]]
+name = "trawl-cli"
+version = "0.3.0"
+dependencies = [
+ "chrono",
+ "dirs 5.0.1",
+ "serde",
+ "serde_json",
+ "tokio",
+ "trawl-core",
+]
+
+[[package]]
+name = "trawl-core"
+version = "0.3.0"
+dependencies = [
+ "chrono",
+ "dirs 5.0.1",
+ "serde",
+ "serde_json",
  "tokio",
  "ureq",
  "uuid",

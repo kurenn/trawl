@@ -43,10 +43,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: ". -> src-tauri/target"
       # tauri-build validates `externalBin` at compile time, so the bundled
       # rclone sidecar must exist even for `cargo test`.
       - name: Fetch rclone sidecar
         run: scripts/fetch-rclone.sh x86_64-unknown-linux-gnu
-      # Tests live in the lib crate; --lib skips the bundle (no built frontend needed).
-      - run: cargo test --lib --manifest-path src-tauri/Cargo.toml
+      # Tests live in the lib crates; --lib skips the bundle (no built frontend needed).
+      - run: cargo test --workspace --exclude trawl
+      - run: cargo test -p trawl --lib

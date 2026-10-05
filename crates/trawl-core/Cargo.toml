@@ -1,0 +1,19 @@
+[package]
+name = "trawl-core"
+version = "0.3.0"
+description = "Sync engine (rclone + pCloud) shared by the Trawl desktop app and CLI"
+authors = ["Spoolr"]
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "rt", "rt-multi-thread", "macros", "sync", "time", "fs"] }
+uuid = { version = "1", features = ["v4"] }
+dirs = "5"
+chrono = { version = "0.4", features = ["serde"] }
+# HTTP client for the pCloud public-link API (showpublink / getpublinkdownload).
+# Pure-Rust TLS (rustls) so there's no system OpenSSL dependency. Used from
+# spawn_blocking; downloads stream chunk-by-chunk for live progress.
+ureq = { version = "2", features = ["json"] }

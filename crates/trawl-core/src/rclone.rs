@@ -17,14 +17,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use tauri::Emitter;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::Mutex;
 
 use crate::models::{
     ConnectionPhase, ConnectionState, FolderNode, ListSourceArgs, Mapping, MappingStatus,
-    RunLogKind, RunLogLine, RunProgress, SourceKind, RUN_UPDATE_EVENT,
+    ProgressFn, RunLogKind, RunLogLine, RunProgress, SourceKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -461,18 +460,18 @@ const DEST_CHECK_EVERY_TICKS: u32 = 30;
 /// merely slow — a hung SMB/NFS share blocks `stat` indefinitely.
 const DEST_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Run `rclone copy` for a single mapping, streaming progress events to the
-/// Tauri frontend via the RUN_UPDATE_EVENT channel.
+/// Run `rclone copy` for a single mapping, streaming progress snapshots to
+/// `emit` as the run proceeds.
 ///
 /// # Arguments
-/// - `app`       — Tauri AppHandle for `app.emit(…)`.
+/// - `emit`      — Callback invoked with each progress snapshot.
 /// - `jobs`      — Shared map of active Child processes, keyed by run_id.
 /// - `remote`    — rclone remote name (e.g. "gdrive").
 /// - `mapping`   — The saved mapping to execute.
 /// - `dest_abs`  — Absolute filesystem path for the destination.
 /// - `run_id`    — Unique ID for this run (monotonic i64 from the commands layer).
 pub async fn run_sync(
-    app: tauri::AppHandle,
+    emit: ProgressFn,
     jobs: Arc<Mutex<HashMap<i64, Job>>>,
     remote: String,
     mapping: Mapping,
@@ -508,7 +507,7 @@ pub async fn run_sync(
                 }],
                 error: Some(e),
             };
-            let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+            emit(&progress);
             return progress;
         }
     };
@@ -544,7 +543,7 @@ pub async fn run_sync(
             }],
             error: Some(msg),
         };
-        let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+        emit(&progress);
         return progress;
     }
 
@@ -624,7 +623,7 @@ pub async fn run_sync(
                 log: vec![RunLogLine { text: msg.clone(), kind: RunLogKind::Error }],
                 error: Some(msg),
             };
-            let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+            emit(&progress);
             return progress;
         }
     };
@@ -669,7 +668,7 @@ pub async fn run_sync(
         error: None,
     };
 
-    let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+    emit(&progress);
 
     let mut last_emit = Instant::now();
     let mut error_lines: Vec<String> = Vec::new();
@@ -786,7 +785,7 @@ pub async fn run_sync(
         if now.duration_since(last_emit) >= Duration::from_millis(EMIT_INTERVAL_MS)
             || parsed.stats.is_some()
         {
-            let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+            emit(&progress);
             last_emit = now;
         }
     }
@@ -929,7 +928,7 @@ pub async fn run_sync(
         push_log(&mut progress.log, RunLogLine { text: summary, kind: summary_kind });
     }
 
-    let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+    emit(&progress);
     progress
 }
 
