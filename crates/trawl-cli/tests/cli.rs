@@ -509,6 +509,64 @@ fn sync_failure_persists_failed() {
     assert!(locks::try_run_lock(&run_dir, id).unwrap().is_some(), "run lock should be free");
 }
 
+// ─── F4: a save failure must not be reported as success ──────────────────
+
+/// RAII guard restoring a directory's permissions even if an assertion
+/// below panics — otherwise the harness's `Drop` (`remove_dir_all`) can't
+/// clean up a still-read-only `app_data_dir`.
+struct RestorePerms(PathBuf);
+
+impl Drop for RestorePerms {
+    fn drop(&mut self) {
+        if let Ok(meta) = fs::metadata(&self.0) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o755);
+            let _ = fs::set_permissions(&self.0, perms);
+        }
+    }
+}
+
+#[test]
+fn sync_persist_failure_exits_nonzero() {
+    let h = Harness::new("persist_failure");
+    let dest = h.root.join("dest");
+    let id = "sync-persist-fail";
+    h.write_mappings(&[test_mapping(id, &dest)]);
+
+    // Make the app data dir non-writable so `persist_run_result` can't create
+    // `mappings.json.lock` or the atomic-write temp file, even though the
+    // fake rclone run itself succeeds — this is what should force exit 1
+    // instead of a silently-swallowed save failure reported as success.
+    let mut perms = fs::metadata(&h.app_data_dir).unwrap().permissions();
+    perms.set_mode(0o555);
+    fs::set_permissions(&h.app_data_dir, perms).unwrap();
+    let _restore = RestorePerms(h.app_data_dir.clone());
+
+    // If the test runs as root (or anything else bypasses directory
+    // permission checks), the chmod above has no teeth: writes still
+    // succeed, persist still works, and the exit-code/stderr assertions
+    // below would be asserting the wrong thing. Detect that case and skip
+    // them rather than produce a false failure.
+    let probe = h.app_data_dir.join(".write_probe");
+    let chmod_has_teeth = fs::write(&probe, b"x").is_err();
+    let _ = fs::remove_file(&probe);
+
+    let output = h.command(&["sync", id]).output().unwrap();
+
+    if !chmod_has_teeth {
+        return;
+    }
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("trawl-cli: cannot save result:"), "stderr: {stderr}");
+}
+
 // ─── AC17: bad ids rejected ───────────────────────────────────────────────
 
 #[test]

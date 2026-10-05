@@ -54,6 +54,14 @@ pub fn run(app_data_dir: PathBuf, mappings_file: PathBuf, run_dir: PathBuf, mapp
 
     let exit_code = rt.block_on(run_async(app_data_dir, mappings_file, progress_path, mapping));
 
+    // Never rely on runtime teardown: a normal `Drop` of `rt` here would block
+    // until every outstanding blocking-pool task (e.g. a `spawn_blocking` stat
+    // call wedged on a dead network mount) returns on its own, which can hang
+    // indefinitely — well past `main`'s `std::process::exit` that's supposed
+    // to follow. `shutdown_background` returns immediately and abandons those
+    // tasks instead (plan assumption A12: never rely on runtime teardown).
+    rt.shutdown_background();
+
     // Never rely on runtime teardown to release the lock — drop it explicitly
     // right here, then the caller does `std::process::exit`.
     drop(lock);
@@ -72,6 +80,15 @@ async fn run_async(
     // Never shared across tasks (only read/written within this function's own
     // select loop below), so a plain `AtomicBool` needs no `Arc` around it.
     let signalled = AtomicBool::new(false);
+
+    // Installed before destination resolution (which can itself take up to
+    // `DEST_CHECK_TIMEOUT`) so a SIGTERM/SIGINT arriving during that window
+    // overrides the default kill-the-process disposition immediately instead
+    // of only once the select loop below starts polling for it.
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("install SIGTERM handler");
+    let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
+        .expect("install SIGINT handler");
 
     // Resolve the destination off the async executor, bounded so a wedged
     // network mount can't hang the run before it even starts.
@@ -130,14 +147,11 @@ async fn run_async(
     let run_future = run_mapping(emit, Arc::clone(&jobs), mapping, dest_abs, run_id);
     tokio::pin!(run_future);
 
-    // Signal handlers are installed BEFORE the select loop ever polls the run
-    // future, so a signal that arrives before the rclone/pCloud job is even
+    // Signal handlers (installed above, before destination resolution) are
+    // still in place well BEFORE the select loop ever polls the run future,
+    // so a signal that arrives before the rclone/pCloud job is even
     // registered is never missed — the 250ms ticker below keeps retrying
     // cancel() until it lands.
-    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-        .expect("install SIGTERM handler");
-    let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
-        .expect("install SIGINT handler");
     let mut ticker = tokio::time::interval(Duration::from_millis(250));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
@@ -250,10 +264,27 @@ async fn finalize(
 
     let mappings_file = mappings_file.to_path_buf();
     let persisted = progress.clone();
-    let _ = tokio::task::spawn_blocking(move || store::persist_run_result(&mappings_file, &persisted))
-        .await;
+    let persist_result =
+        tokio::task::spawn_blocking(move || store::persist_run_result(&mappings_file, &persisted)).await;
 
     let _ = std::fs::remove_file(progress_path);
+
+    // Both failure layers matter here: the join error (the blocking task
+    // itself panicked) and the inner `Err` (persist failed, e.g. an
+    // unwritable app data dir). Either one means `last_at` never advanced,
+    // so systemd must NOT see this as success — sync-due would otherwise
+    // re-pick this mapping forever while believing the previous run worked.
+    match persist_result {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            eprintln!("trawl-cli: cannot save result: {e}");
+            return 1;
+        }
+        Err(e) => {
+            eprintln!("trawl-cli: cannot save result: {e}");
+            return 1;
+        }
+    }
 
     match progress.status {
         MappingStatus::Succeeded | MappingStatus::Cancelled => 0,
