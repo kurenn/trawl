@@ -32,10 +32,11 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use tauri::Emitter;
 use uuid::Uuid;
 
-use crate::models::{FolderNode, Mapping, MappingStatus, RunLogKind, RunLogLine, RunProgress, RUN_UPDATE_EVENT};
+use crate::models::{
+    FolderNode, Mapping, MappingStatus, ProgressFn, RunLogKind, RunLogLine, RunProgress,
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -562,8 +563,8 @@ pub fn resolve_pcloud_name(host: &str, code: &str) -> String {
 /// Sync a pCloud public-link folder into a local destination directory.
 ///
 /// Mirrors `rclone::run_sync` in shape: registers a `Job`, offloads all
-/// blocking HTTP work to `spawn_blocking`, streams `RUN_UPDATE_EVENT` progress
-/// to the Tauri frontend, and returns the final `RunProgress`.
+/// blocking HTTP work to `spawn_blocking`, streams progress snapshots to
+/// `emit`, and returns the final `RunProgress`.
 ///
 /// Behaviour:
 /// - Additive: never deletes local files.
@@ -576,7 +577,7 @@ pub fn resolve_pcloud_name(host: &str, code: &str) -> String {
 /// - Keep-going: a single file error is logged but does not abort the rest of
 ///   the run; the final status is Failed if any error occurred.
 pub async fn run_pcloud_sync(
-    app: tauri::AppHandle,
+    emit: ProgressFn,
     jobs: Arc<tokio::sync::Mutex<HashMap<i64, crate::rclone::Job>>>,
     host: String,
     code: String,
@@ -600,8 +601,8 @@ pub async fn run_pcloud_sync(
         );
     }
 
-    // Clone everything the blocking closure needs (AppHandle is Clone+Send).
-    let app2 = app.clone();
+    // Clone everything the blocking closure needs.
+    let emit2 = emit.clone();
     let host2 = host.clone();
     let code2 = code.clone();
     let mapping2 = mapping.clone();
@@ -610,9 +611,9 @@ pub async fn run_pcloud_sync(
     let src_label2 = src_label.clone();
     let dest_str2 = dest_str.clone();
 
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || {
         sync_blocking(
-            app2,
+            emit2,
             host2,
             code2,
             mapping2,
@@ -639,7 +640,7 @@ pub async fn run_pcloud_sync(
                 &dest_str,
                 &format!("Internal error (thread panic): {}", join_err),
             );
-            let _ = app.emit(RUN_UPDATE_EVENT, &p);
+            emit(&p);
             p
         }
     }
@@ -651,7 +652,7 @@ pub async fn run_pcloud_sync(
 
 #[allow(clippy::too_many_arguments)]
 fn sync_blocking(
-    app: tauri::AppHandle,
+    emit: ProgressFn,
     host: String,
     code: String,
     mapping: Mapping,
@@ -666,7 +667,7 @@ fn sync_blocking(
         Ok(r) => r,
         Err(e) => {
             let p = failed_progress(run_id, &mapping, &src_label, &dest_str, &e);
-            let _ = app.emit(RUN_UPDATE_EVENT, &p);
+            emit(&p);
             return p;
         }
     };
@@ -676,7 +677,7 @@ fn sync_blocking(
         Ok(c) => c,
         Err(e) => {
             let p = failed_progress(run_id, &mapping, &src_label, &dest_str, &e);
-            let _ = app.emit(RUN_UPDATE_EVENT, &p);
+            emit(&p);
             return p;
         }
     };
@@ -713,30 +714,16 @@ fn sync_blocking(
         }],
         error: None,
     };
-    let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+    emit(&progress);
 
-    // Pre-flight: catch the common "destination volume isn't mounted" case with
-    // a clear message before the cryptic create_dir_all permission error.
-    if let Err(msg) = crate::store::check_dest_available(&dest_abs) {
+    // Pre-flight: destination-available check + create_dir_all, bounded so a
+    // wedged mount can't hang the run before it even starts (we're already
+    // running inside spawn_blocking here, so this just calls straight through).
+    if let Err(msg) = crate::rclone::prepare_dest_bounded(&dest_abs) {
         push_log(&mut progress.log, RunLogLine { text: msg.clone(), kind: RunLogKind::Error });
         progress.status = MappingStatus::Failed;
         progress.error = Some(msg);
-        let _ = app.emit(RUN_UPDATE_EVENT, &progress);
-        return progress;
-    }
-    // Ensure destination root exists.
-    if let Err(e) = std::fs::create_dir_all(&dest_abs) {
-        let msg = format!("Cannot create destination folder “{}”: {}", dest_abs.display(), e);
-        push_log(
-            &mut progress.log,
-            RunLogLine {
-                text: msg.clone(),
-                kind: RunLogKind::Error,
-            },
-        );
-        progress.status = MappingStatus::Failed;
-        progress.error = Some(msg);
-        let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+        emit(&progress);
         return progress;
     }
 
@@ -794,7 +781,7 @@ fn sync_blocking(
                     // Throttled emit.
                     let now = Instant::now();
                     if now.duration_since(last_emit) >= Duration::from_millis(EMIT_INTERVAL_MS) {
-                        let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+                        emit(&progress);
                         last_emit = now;
                     }
                     continue;
@@ -850,7 +837,7 @@ fn sync_blocking(
             file.relative_path.clone(),
             &cancel,
             &mut progress,
-            &app,
+            &emit,
             &mut last_emit,
             run_start,
             bytes_total,
@@ -923,7 +910,7 @@ fn sync_blocking(
         );
     }
 
-    let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+    emit(&progress);
     progress
 }
 
@@ -951,7 +938,7 @@ fn download_file(
     relative_path: String,
     cancel: &AtomicBool,
     progress: &mut RunProgress,
-    app: &tauri::AppHandle,
+    emit: &ProgressFn,
     last_emit: &mut Instant,
     run_start: Instant,
     bytes_total: i64,
@@ -1063,7 +1050,7 @@ fn download_file(
         // Throttled emit.
         let now = Instant::now();
         if now.duration_since(*last_emit) >= Duration::from_millis(EMIT_INTERVAL_MS) {
-            let _ = app.emit(RUN_UPDATE_EVENT, &*progress);
+            emit(&*progress);
             *last_emit = now;
         }
     }

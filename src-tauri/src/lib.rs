@@ -1,10 +1,11 @@
 pub mod commands;
-pub mod models;
-pub mod pcloud;
-pub mod rclone;
 pub mod scheduler;
-pub mod store;
 pub mod tray;
+
+// Re-exported so existing `crate::store::…` / `crate::rclone::…` paths in
+// commands/scheduler/tray keep compiling unchanged — the actual modules now
+// live in the trawl-core crate (shared with trawl-cli).
+pub use trawl_core::{models, pcloud, rclone, store};
 
 use commands::AppState;
 use tauri::Manager;

@@ -1,18 +1,21 @@
 use std::{
     collections::{HashMap, HashSet},
+    fs::File,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicI64, Ordering},
         Arc, Mutex,
     },
+    time::Duration,
 };
 
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
+use trawl_core::locks;
 
 use crate::models::{
     ConnectionPhase, ConnectionState, FolderNode, ListSourceArgs, Mapping, NewMapping, OpResult,
-    Settings, SourceKind, SourceProvider, STATE_CHANGED_EVENT,
+    ProgressFn, Settings, SourceKind, SourceProvider, RUN_UPDATE_EVENT, STATE_CHANGED_EVENT,
 };
 use crate::{pcloud, rclone, store};
 
@@ -24,6 +27,9 @@ pub struct AppState {
     pub mappings_file: PathBuf,
     pub settings_file: PathBuf,
     pub library_root: Mutex<PathBuf>,
+    /// Directory holding run lock/progress files for this app instance,
+    /// computed once at startup (see `trawl_core::locks::run_dir`).
+    pub run_dir: PathBuf,
     pub remote: Mutex<String>,
     /// Active rclone jobs keyed by the BACKEND-assigned run id.
     pub jobs: Arc<tokio::sync::Mutex<HashMap<i64, rclone::Job>>>,
@@ -63,24 +69,41 @@ impl AppState {
 
         let mappings_file = app_data_dir.join("mappings.json");
 
-        // Determine library root: persisted value or ~/Trawl default.
-        let lib_root_txt = app_data_dir.join("library_root.txt");
-        let library_root = if lib_root_txt.exists() {
-            std::fs::read_to_string(&lib_root_txt)
-                .ok()
-                .map(|s| PathBuf::from(s.trim()))
-                .filter(|p| !p.as_os_str().is_empty())
-                .unwrap_or_else(default_library_root)
-        } else {
-            default_library_root()
-        };
+        // Determine library root: persisted value or ~/Trawl default. Reading
+        // it never touches the filesystem beyond the one small text file.
+        let library_root = store::read_library_root(app_data_dir);
 
-        // Ensure the library root directory exists.
-        std::fs::create_dir_all(&library_root).ok();
+        // Creating the library root (possibly a slow/flaky network mount) and
+        // migrating legacy destinations (which canonicalizes it) are bounded
+        // so a wedged mount can't hang app startup — on timeout we log and
+        // continue with whatever state exists; the next sync attempt will
+        // surface the same mount problem through the normal dest-unreachable
+        // path instead of silently wedging the UI forever.
+        {
+            let library_root = library_root.clone();
+            let mappings_file = mappings_file.clone();
+            if rclone::with_timeout(Duration::from_secs(10), move || {
+                std::fs::create_dir_all(&library_root).ok();
+                // One-time: pin any legacy mapping (no absolute dest_path) to
+                // its current location so it no longer drifts when the
+                // library root changes.
+                store::migrate_legacy_dests(&mappings_file, &library_root);
+            })
+            .is_none()
+            {
+                eprintln!(
+                    "[AppState::new] library root setup timed out after 10s; continuing startup"
+                );
+            }
+        }
 
-        // One-time: pin any legacy mapping (no absolute dest_path) to its current
-        // location so it no longer drifts when the library root changes.
-        store::migrate_legacy_dests(&mappings_file, &library_root);
+        // Run-lock directory, computed once. Falls back (without creating it)
+        // to the same path selection on error — a claim against a missing
+        // directory fails closed (IO error => Err, never an unlocked run).
+        let run_dir = locks::run_dir(app_data_dir).unwrap_or_else(|e| {
+            eprintln!("[AppState::new] couldn't create run dir: {e}");
+            locks::run_dir_from(std::env::var("XDG_RUNTIME_DIR").ok().as_deref(), app_data_dir)
+        });
 
         let settings_file = app_data_dir.join("settings.json");
         let settings = store::load_settings(&settings_file);
@@ -89,6 +112,7 @@ impl AppState {
             mappings_file,
             settings_file,
             library_root: Mutex::new(library_root),
+            run_dir,
             remote: Mutex::new("gdrive".to_string()),
             jobs: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             active_mappings: Arc::new(Mutex::new(HashSet::new())),
@@ -104,12 +128,6 @@ impl AppState {
     }
 }
 
-fn default_library_root() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("/"))
-        .join("Trawl")
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -123,6 +141,41 @@ fn get_remote(state: &tauri::State<AppState>) -> String {
 /// Grab the library root PathBuf out of the Mutex.
 fn library_root_path(state: &tauri::State<AppState>) -> PathBuf {
     state.library_root.lock().unwrap().clone()
+}
+
+/// Claim the right to run `id` now: the in-process `active` guard (fast,
+/// catches same-process races like a double-click) THEN the cross-process
+/// run lock (catches another Trawl process, e.g. a CLI run, syncing the same
+/// mapping). Held for as long as the returned `File` lives.
+///
+/// - `Ok(file)`: claimed — caller now owns the lock and must keep `file`
+///   alive until the run's result is persisted.
+/// - `Err("This mapping is already syncing.")`: already claimed in this
+///   process, or the cross-process lock is held elsewhere.
+/// - `Err(_)`: IO error acquiring the lock.
+///
+/// On every error path `id` is removed from `active` before returning, so a
+/// failed claim never leaves a phantom "running" mapping behind.
+fn claim_run(active: &Mutex<HashSet<String>>, run_dir: &Path, id: &str) -> Result<File, String> {
+    {
+        let mut guard = active.lock().unwrap();
+        if guard.contains(id) {
+            return Err("This mapping is already syncing.".to_string());
+        }
+        guard.insert(id.to_string());
+    }
+
+    match locks::try_run_lock(run_dir, id) {
+        Ok(Some(file)) => Ok(file),
+        Ok(None) => {
+            active.lock().unwrap().remove(id);
+            Err("This mapping is already syncing.".to_string())
+        }
+        Err(e) => {
+            active.lock().unwrap().remove(id);
+            Err(e)
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -343,17 +396,31 @@ pub async fn trigger_sync(app: AppHandle, mapping_id: String) -> Result<i64, Str
     let remote = state.remote.lock().unwrap().clone();
 
     // Resolve the absolute destination. Per-mapping `dest_path` (absolute) wins;
-    // legacy mappings fall back to library_root + dest_subpath.
-    let dest_abs = store::effective_dest(&library_root, &mapping.dest_path, &mapping.dest_subpath)?;
-
-    // Concurrency guard: refuse a second concurrent run of the same mapping.
-    {
-        let mut active = state.active_mappings.lock().unwrap();
-        if active.contains(&mapping_id) {
-            return Err("This mapping is already syncing.".to_string());
+    // legacy mappings fall back to library_root + dest_subpath (which
+    // canonicalizes library_root — possibly a slow/flaky network mount).
+    // Bounded + off the async executor thread so a wedged mount can't hang
+    // the command instead of failing with a clear error.
+    let dest_abs = {
+        let library_root = library_root.clone();
+        let dest_path = mapping.dest_path.clone();
+        let dest_subpath = mapping.dest_subpath.clone();
+        let outcome = tauri::async_runtime::spawn_blocking(move || {
+            rclone::with_timeout(rclone::DEST_CHECK_TIMEOUT, move || {
+                store::effective_dest(&library_root, &dest_path, &dest_subpath)
+            })
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+        match outcome {
+            Some(result) => result?,
+            None => return Err("Destination stopped responding".to_string()),
         }
-        active.insert(mapping_id.clone());
-    }
+    };
+
+    // Concurrency guard: the in-process `active` set, THEN the cross-process
+    // run lock. The lock `File` is held (moved into the spawned task below)
+    // until the run's result is persisted.
+    let lock = claim_run(&state.active_mappings, &state.run_dir, &mapping_id)?;
 
     // Backend-owned, collision-free run id.
     let run_id = state.run_counter.fetch_add(1, Ordering::SeqCst);
@@ -367,14 +434,22 @@ pub async fn trigger_sync(app: AppHandle, mapping_id: String) -> Result<i64, Str
 
     tauri::async_runtime::spawn(async move {
         // Wait for a global concurrency slot before launching the run. The
-        // mapping already shows as "running" (it's in active_mappings) while it
-        // waits its turn, which is fine — "running" means queued-or-transferring.
+        // mapping already shows as "running" (it's in active_mappings, and the
+        // run lock is held) while it waits its turn, which is fine —
+        // "running" means queued-or-transferring.
         let _permit = semaphore.acquire_owned().await;
+
+        let emit: ProgressFn = Arc::new({
+            let app = app.clone();
+            move |p| {
+                let _ = app.emit(RUN_UPDATE_EVENT, p);
+            }
+        });
 
         let progress = match mapping.source_provider {
             crate::models::SourceProvider::Gdrive => {
                 rclone::run_sync(
-                    app.clone(),
+                    emit,
                     Arc::clone(&jobs),
                     remote,
                     mapping.clone(),
@@ -387,7 +462,7 @@ pub async fn trigger_sync(app: AppHandle, mapping_id: String) -> Result<i64, Str
                 let host = mapping.source_host.clone().unwrap_or_default();
                 let code = mapping.source_id.clone().unwrap_or_default();
                 pcloud::run_pcloud_sync(
-                    app.clone(),
+                    emit,
                     Arc::clone(&jobs),
                     host,
                     code,
@@ -399,30 +474,10 @@ pub async fn trigger_sync(app: AppHandle, mapping_id: String) -> Result<i64, Str
             }
         };
 
-        // Write the final result back to the store.
-        let at = Some(chrono::Utc::now().to_rfc3339());
-        let _ = store::update_run_result(
-            &mappings_file,
-            &mapping.id,
-            progress.status,
-            at,
-            // Use files_done / bytes_done as the authoritative totals if
-            // total fields are zero (rclone may not know totals in advance).
-            Some(if progress.files_total > 0 {
-                progress.files_total
-            } else {
-                progress.files_done
-            }),
-            Some(if progress.bytes_total > 0 {
-                progress.bytes_total
-            } else {
-                progress.bytes_done
-            }),
-            // The engine states the failure reason explicitly. Don't scavenge
-            // it from the log: the closing line there may summarise rather than
-            // explain, and the log is length-capped.
-            progress.error.clone(),
-        );
+        // Write the final result back to the store. The run lock is still
+        // held at this point (it outlives the write) — released explicitly
+        // below, after the mapping is observably done.
+        let _ = store::persist_run_result(&mappings_file, &progress);
 
         // Release the mapping so it can be synced again.
         active_mappings.lock().unwrap().remove(&mapping.id);
@@ -431,6 +486,10 @@ pub async fn trigger_sync(app: AppHandle, mapping_id: String) -> Result<i64, Str
         // a safety net so a card can't get stuck "running" if a live run event
         // was dropped (the frontend preserves still-running cards on reload).
         let _ = app.emit(STATE_CHANGED_EVENT, ());
+
+        // Release the cross-process run lock now that the result is
+        // persisted and the UI has been told to reconcile.
+        drop(lock);
     });
 
     Ok(run_id)
@@ -497,4 +556,70 @@ pub async fn cancel_sync(
 ) -> Result<(), String> {
     rclone::cancel(Arc::clone(&state.jobs), run_id).await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+
+    /// A unique temp dir per test run — no tempfile crate: pid + a monotonic
+    /// counter + the current time is unique enough for a test binary.
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, AtomicOrdering::SeqCst);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!(
+            "trawl_commands_test_{label}_{}_{}_{}",
+            std::process::id(),
+            nanos,
+            n
+        ))
+    }
+
+    #[test]
+    fn claim_run_refuses_when_lock_held_elsewhere_and_leaves_active_clean() {
+        let dir = unique_temp_dir("held_elsewhere");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // A separate handle holds the cross-process run lock for "m1", as a
+        // concurrent process (or an earlier claim in this one) would.
+        let held = locks::try_run_lock(&dir, "m1")
+            .unwrap()
+            .expect("the held-elsewhere claim itself should succeed");
+
+        let active: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
+        let err = claim_run(&active, &dir, "m1").expect_err("lock is held elsewhere");
+        assert_eq!(err, "This mapping is already syncing.");
+        assert!(
+            active.lock().unwrap().is_empty(),
+            "a failed claim must not leave the id in `active`"
+        );
+
+        drop(held);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn claim_run_refuses_duplicate_in_process() {
+        let dir = unique_temp_dir("duplicate_in_process");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let active: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
+
+        let first = claim_run(&active, &dir, "m1").expect("first claim should succeed");
+        let err = claim_run(&active, &dir, "m1")
+            .expect_err("a second in-process claim for the same id must be refused");
+        assert_eq!(err, "This mapping is already syncing.");
+
+        // The in-process guard rejects before touching the lock file at all,
+        // so the original (still-valid) claim's membership must be untouched.
+        assert!(active.lock().unwrap().contains("m1"));
+
+        drop(first);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

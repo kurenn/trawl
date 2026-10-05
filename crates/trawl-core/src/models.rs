@@ -194,6 +194,12 @@ pub struct RunProgress {
     pub error: Option<String>,
 }
 
+/// Callback invoked with each `RunProgress` snapshot as a sync runs. Lets the
+/// engine stream progress without depending on Tauri directly — the caller
+/// (a Tauri command, the CLI, …) decides what to do with each snapshot (emit
+/// a Tauri event, print a line, etc).
+pub type ProgressFn = std::sync::Arc<dyn Fn(&RunProgress) + Send + Sync>;
+
 /// Result of createLocalFolder. == TS `{ ok, error? }`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpResult {

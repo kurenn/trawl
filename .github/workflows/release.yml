@@ -106,7 +106,7 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: ". -> src-tauri/target"
 
       - name: Install frontend dependencies
         run: npm install

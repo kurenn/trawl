@@ -18,14 +18,11 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use tauri::Manager;
+use trawl_core::schedule;
 
 use crate::commands::{self, AppState};
 use crate::models::{ConnectionPhase, SourceProvider};
 use crate::{rclone, store};
-
-/// Minimum permitted auto-sync interval (guards against a zero value that
-/// would hammer Drive with back-to-back syncs).
-const MIN_INTERVAL: Duration = Duration::from_secs(15 * 60); // 15 minutes
 
 /// The main scheduler loop. Runs forever (until the Tauri runtime drops the
 /// spawned task). Ticks every 30 seconds; each tick evaluates whether any
@@ -97,22 +94,9 @@ pub async fn run_scheduler(app: tauri::AppHandle) {
             false // no Drive mapping is due — value is unused
         };
 
-        // ── 4. Compute the effective sync interval ─────────────────────────────
-        let interval = {
-            let configured = Duration::from_secs(
-                settings.auto_sync_interval_minutes as u64 * 60,
-            );
-            // Clamp to minimum to prevent zero/tiny intervals hammering Drive.
-            if configured < MIN_INTERVAL {
-                MIN_INTERVAL
-            } else {
-                configured
-            }
-        };
-
         let now = chrono::Utc::now();
 
-        // ── 5. Evaluate each mapping ───────────────────────────────────────────
+        // ── 3. Evaluate each mapping ───────────────────────────────────────────
         for mapping in mappings {
             if !mapping.enabled || !mapping.auto_sync {
                 continue;
@@ -129,29 +113,9 @@ pub async fn run_scheduler(app: tauri::AppHandle) {
                 continue;
             }
 
-            // Determine whether this mapping is due for a sync.
-            let due = match &mapping.last_at {
-                None => true, // never synced → sync immediately
-                Some(ts) => match chrono::DateTime::parse_from_rfc3339(ts) {
-                    Ok(last_at) => {
-                        let elapsed = now.signed_duration_since(last_at);
-                        // due when elapsed >= configured interval
-                        elapsed
-                            .to_std()
-                            .map(|d| d >= interval)
-                            .unwrap_or(true) // negative duration → treat as due
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "[scheduler] mapping {} has unparseable last_at {:?}: {e}",
-                            mapping.id, ts
-                        );
-                        true // parse error → sync to repair state
-                    }
-                },
-            };
-
-            if !due {
+            // Determine whether this mapping is due for a sync — shared with
+            // the CLI so both agree on exactly when a mapping is due.
+            if !schedule::is_due(&mapping, &settings, now) {
                 continue;
             }
 

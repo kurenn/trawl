@@ -6,19 +6,14 @@
 use std::fs;
 use std::io::Write as IoWrite;
 use std::path::{Component, Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
 
 use uuid::Uuid;
 
+use crate::locks;
 use crate::models::{
-    FolderNode, Mapping, MappingStatus, NewMapping, OpResult, Settings, SourceKind, SourceProvider,
+    FolderNode, Mapping, MappingStatus, NewMapping, OpResult, RunProgress, Settings, SourceKind,
+    SourceProvider,
 };
-
-/// Serializes every read-modify-write of mappings.json (save / delete /
-/// update-run-result / toggle-auto). Without this, two near-simultaneous run
-/// completions each load the same snapshot and the later write clobbers the
-/// earlier one's last-run result. Held only across synchronous work (no awaits).
-static MAPPINGS_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 // ─── Path Safety ─────────────────────────────────────────────────────────────
 
@@ -371,7 +366,7 @@ pub fn local_path_exists(library_root: &Path, subpath: &str) -> bool {
 
 /// Writes `data` to a temp file in the same directory as `dest`, then renames
 /// into place.  The rename is atomic on POSIX; on Windows it is best-effort.
-fn atomic_write(dest: &Path, data: &[u8]) -> Result<(), String> {
+pub fn atomic_write(dest: &Path, data: &[u8]) -> Result<(), String> {
     let dir = dest.parent().ok_or("Mappings file has no parent directory")?;
 
     // Ensure the parent directory exists.
@@ -416,12 +411,36 @@ pub fn load_mappings(file: &Path) -> Vec<Mapping> {
 /// library root. Called once at startup. After this, no mapping silently moves
 /// when the root (or another mapping's destination) changes.
 pub fn migrate_legacy_dests(file: &Path, library_root: &Path) {
-    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    // Phase 1: resolve every legacy mapping's destination WITHOUT holding the
+    // lock. `resolve_dest` canonicalizes the library root, which can be slow
+    // (or hang, on a flaky network mount) — doing that while holding the
+    // mappings lock would block every other write in the app for as long as
+    // it takes.
+    let snapshot = load_mappings(file);
+    let resolved: Vec<(String, PathBuf)> = snapshot
+        .iter()
+        .filter(|m| m.dest_path.trim().is_empty())
+        .filter_map(|m| resolve_dest(library_root, &m.dest_subpath).ok().map(|abs| (m.id.clone(), abs)))
+        .collect();
+    if resolved.is_empty() {
+        return;
+    }
+
+    // Phase 2: take the lock, reload fresh (another writer may have run
+    // in between), and apply a resolved path only to ids whose `dest_path`
+    // is STILL empty.
+    let _lock = match locks::lock_mappings(file) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("[migrate_legacy_dests] couldn't acquire mappings lock, skipping: {e}");
+            return;
+        }
+    };
     let mut mappings = load_mappings(file);
     let mut changed = false;
-    for m in mappings.iter_mut() {
-        if m.dest_path.trim().is_empty() {
-            if let Ok(abs) = resolve_dest(library_root, &m.dest_subpath) {
+    for (id, abs) in &resolved {
+        if let Some(m) = mappings.iter_mut().find(|m| &m.id == id) {
+            if m.dest_path.trim().is_empty() {
                 m.dest_path = abs.display().to_string();
                 changed = true;
             }
@@ -519,7 +538,7 @@ pub fn save_new_mappings(
         }
     }
 
-    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    let _lock = locks::lock_mappings(file)?;
     let mut mappings = load_mappings(file);
     // Dedup by FULL identity (provider + source + dest), not destination alone.
     // Two different source folders may legitimately target the same destination
@@ -579,7 +598,7 @@ pub fn save_new_mappings(
 
 /// Removes the mapping with the given `id` and writes the file atomically.
 pub fn delete_mapping(file: &Path, id: &str) -> Result<(), String> {
-    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    let _lock = locks::lock_mappings(file)?;
     let mut mappings = load_mappings(file);
     mappings.retain(|m| m.id != id);
     write_mappings(file, &mappings)
@@ -596,7 +615,7 @@ pub fn update_run_result(
     bytes: Option<i64>,
     error: Option<String>,
 ) -> Result<(), String> {
-    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    let _lock = locks::lock_mappings(file)?;
     let mut mappings = load_mappings(file);
 
     if let Some(m) = mappings.iter_mut().find(|m| m.id == id) {
@@ -608,6 +627,55 @@ pub fn update_run_result(
     }
 
     write_mappings(file, &mappings)
+}
+
+/// Writes the final result of a run for `progress.mapping_id`, reproducing
+/// exactly what the app's `trigger_sync` command writes today: `at` = now
+/// (RFC3339), `files`/`bytes` = the engine's reported total when it knows one
+/// (>0), else the done count (rclone doesn't always know totals up front),
+/// `error` passed through unchanged.
+pub fn persist_run_result(file: &Path, progress: &RunProgress) -> Result<(), String> {
+    let at = Some(chrono::Utc::now().to_rfc3339());
+    update_run_result(
+        file,
+        &progress.mapping_id,
+        progress.status,
+        at,
+        Some(if progress.files_total > 0 {
+            progress.files_total
+        } else {
+            progress.files_done
+        }),
+        Some(if progress.bytes_total > 0 {
+            progress.bytes_total
+        } else {
+            progress.bytes_done
+        }),
+        progress.error.clone(),
+    )
+}
+
+/// Reads the persisted library root (`<app_data_dir>/library_root.txt`, else
+/// the default `~/Trawl`), WITHOUT creating any directories — unlike the
+/// app's startup path, which also `create_dir_all`s it. Ported from the
+/// desktop app's `AppState::new`.
+pub fn read_library_root(app_data_dir: &Path) -> PathBuf {
+    let lib_root_txt = app_data_dir.join("library_root.txt");
+    if lib_root_txt.exists() {
+        fs::read_to_string(&lib_root_txt)
+            .ok()
+            .map(|s| PathBuf::from(s.trim()))
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(default_library_root)
+    } else {
+        default_library_root()
+    }
+}
+
+fn default_library_root() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("/"))
+        .join("Trawl")
 }
 
 // ─── Settings Persistence ────────────────────────────────────────────────────
@@ -638,7 +706,7 @@ pub fn set_mapping_auto_sync(
     id: &str,
     auto: bool,
 ) -> Result<Vec<Mapping>, String> {
-    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    let _lock = locks::lock_mappings(file)?;
     let mut mappings = load_mappings(file);
 
     if let Some(m) = mappings.iter_mut().find(|m| m.id == id) {
@@ -657,7 +725,7 @@ pub fn set_mapping_skip_shortcuts(
     id: &str,
     skip: bool,
 ) -> Result<Vec<Mapping>, String> {
-    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    let _lock = locks::lock_mappings(file)?;
     let mut mappings = load_mappings(file);
 
     if let Some(m) = mappings.iter_mut().find(|m| m.id == id) {
@@ -676,7 +744,7 @@ pub fn set_mapping_protect_local_edits(
     id: &str,
     protect: bool,
 ) -> Result<Vec<Mapping>, String> {
-    let _guard = MAPPINGS_LOCK.lock().unwrap();
+    let _lock = locks::lock_mappings(file)?;
     let mut mappings = load_mappings(file);
 
     if let Some(m) = mappings.iter_mut().find(|m| m.id == id) {
@@ -766,6 +834,163 @@ mod tests {
         // Both an existing path and a not-yet-created child of it are fine.
         assert!(check_dest_available(&dir).is_ok());
         assert!(check_dest_available(&dir.join("new/nested")).is_ok());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ─── AC5 / AC8: locking + persistence ──────────────────────────────────
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "trawl_store_test_{label}_{}_{}",
+            std::process::id(),
+            Uuid::new_v4()
+        ))
+    }
+
+    fn test_mapping(id: &str) -> Mapping {
+        Mapping {
+            id: id.to_string(),
+            source_provider: SourceProvider::Gdrive,
+            source_kind: SourceKind::FolderId,
+            source_id: Some("folder".to_string()),
+            source_host: None,
+            source_subpath: String::new(),
+            source_name: "Test".to_string(),
+            src_label: "Test".to_string(),
+            dest_subpath: String::new(),
+            dest_path: "/tmp/dest".to_string(),
+            acknowledge_abuse: false,
+            enabled: true,
+            auto_sync: false,
+            skip_shortcuts: false,
+            protect_local_edits: false,
+            last_status: MappingStatus::Idle,
+            last_at: None,
+            last_files: None,
+            last_bytes: None,
+            last_error: None,
+        }
+    }
+
+    #[test]
+    fn mappings_write_blocks_while_file_lock_held() {
+        let dir = unique_temp_dir("write_blocks");
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("mappings.json");
+        write_mappings(&file, &[test_mapping("m1")]).unwrap();
+
+        // Hold the cross-process mappings lock directly, as a concurrent
+        // process would.
+        let held = locks::lock_mappings(&file).expect("hold lock");
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let file_clone = file.clone();
+        let handle = std::thread::spawn(move || {
+            let _ = update_run_result(
+                &file_clone,
+                "m1",
+                MappingStatus::Succeeded,
+                Some("2024-01-01T00:00:00Z".to_string()),
+                Some(1),
+                Some(2),
+                None,
+            );
+            tx.send(()).unwrap();
+        });
+
+        assert!(
+            rx.recv_timeout(std::time::Duration::from_millis(200)).is_err(),
+            "update_run_result must not complete while the mappings lock is held"
+        );
+
+        drop(held);
+
+        rx.recv_timeout(std::time::Duration::from_millis(1000))
+            .expect("update_run_result should complete once the lock is released");
+        handle.join().unwrap();
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn concurrent_run_results_all_persist() {
+        let dir = unique_temp_dir("concurrent_results");
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("mappings.json");
+
+        let ids: Vec<String> = (0..20).map(|i| format!("m-{i}")).collect();
+        let mappings: Vec<Mapping> = ids.iter().map(|id| test_mapping(id)).collect();
+        write_mappings(&file, &mappings).unwrap();
+
+        let handles: Vec<_> = ids
+            .iter()
+            .cloned()
+            .map(|id| {
+                let file = file.clone();
+                std::thread::spawn(move || {
+                    update_run_result(
+                        &file,
+                        &id,
+                        MappingStatus::Succeeded,
+                        Some("2024-01-01T00:00:00Z".to_string()),
+                        Some(5),
+                        Some(100),
+                        None,
+                    )
+                    .unwrap();
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let result = load_mappings(&file);
+        assert_eq!(result.len(), ids.len());
+        for id in &ids {
+            let m = result.iter().find(|m| &m.id == id).expect("mapping persisted");
+            assert_eq!(m.last_status, MappingStatus::Succeeded);
+            assert_eq!(m.last_files, Some(5));
+            assert_eq!(m.last_bytes, Some(100));
+        }
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn persist_run_result_falls_back_to_done_counts() {
+        let dir = unique_temp_dir("persist_fallback");
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("mappings.json");
+        write_mappings(&file, &[test_mapping("m1")]).unwrap();
+
+        let progress = RunProgress {
+            run_id: 1,
+            mapping_id: "m1".to_string(),
+            name: "Test".to_string(),
+            src: "src".to_string(),
+            dest: "dest".to_string(),
+            status: MappingStatus::Succeeded,
+            bytes_done: 42,
+            bytes_total: 0, // unknown total => fall back to the done count
+            files_done: 7,
+            files_total: 0,
+            speed: 0.0,
+            eta_sec: 0.0,
+            log: Vec::new(),
+            error: None,
+        };
+
+        persist_run_result(&file, &progress).unwrap();
+
+        let result = load_mappings(&file);
+        let m = result.iter().find(|m| m.id == "m1").expect("mapping persisted");
+        assert_eq!(m.last_status, MappingStatus::Succeeded);
+        assert_eq!(m.last_files, Some(7));
+        assert_eq!(m.last_bytes, Some(42));
+        assert!(m.last_at.is_some());
+
         let _ = fs::remove_dir_all(&dir);
     }
 }

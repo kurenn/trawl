@@ -17,14 +17,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use tauri::Emitter;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::Mutex;
 
 use crate::models::{
     ConnectionPhase, ConnectionState, FolderNode, ListSourceArgs, Mapping, MappingStatus,
-    RunLogKind, RunLogLine, RunProgress, SourceKind, RUN_UPDATE_EVENT,
+    ProgressFn, RunLogKind, RunLogLine, RunProgress, SourceKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -459,20 +458,64 @@ const DEST_CHECK_EVERY_TICKS: u32 = 30;
 
 /// A liveness stat that takes longer than this means the mount is wedged, not
 /// merely slow — a hung SMB/NFS share blocks `stat` indefinitely.
-const DEST_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+pub const DEST_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Run `rclone copy` for a single mapping, streaming progress events to the
-/// Tauri frontend via the RUN_UPDATE_EVENT channel.
+/// Run `f` on its own std thread and wait up to `dur` for it to finish.
+/// Returns `None` on timeout.
+///
+/// ponytail: a timed-out closure's thread is leaked — there is no
+/// cancellation, so a thread blocked on a wedged mount just sits there
+/// forever. Acceptable because the caller is already reporting failure and
+/// moving on; a cancellable worker pool would be the upgrade if leaked
+/// threads ever pile up in practice.
+pub fn with_timeout<T: Send + 'static>(dur: Duration, f: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    rx.recv_timeout(dur).ok()
+}
+
+/// The message shown when a destination stops responding — used both by the
+/// pre-flight check (`prepare_dest_bounded`) and the mid-run liveness probe in
+/// `run_sync`, so the text exists in exactly one place.
+fn dest_unreachable_msg(dest: &str) -> String {
+    format!(
+        "Destination stopped responding — \u{201c}{}\u{201d} is unreachable. \
+         Reconnect it and sync again.",
+        dest
+    )
+}
+
+/// Pre-flight destination check + creation, bounded by `DEST_CHECK_TIMEOUT` so
+/// a wedged mount can't hang a sync indefinitely. Checks the volume is really
+/// mounted (see `store::check_dest_available`) then creates the folder.
+pub fn prepare_dest_bounded(dest: &Path) -> Result<(), String> {
+    let dest_owned = dest.to_path_buf();
+    let dest_str = dest.display().to_string();
+    match with_timeout(DEST_CHECK_TIMEOUT, move || {
+        crate::store::check_dest_available(&dest_owned)?;
+        std::fs::create_dir_all(&dest_owned).map_err(|e| {
+            format!("Cannot create destination folder \u{201c}{}\u{201d}: {}", dest_owned.display(), e)
+        })
+    }) {
+        Some(result) => result,
+        None => Err(dest_unreachable_msg(&dest_str)),
+    }
+}
+
+/// Run `rclone copy` for a single mapping, streaming progress snapshots to
+/// `emit` as the run proceeds.
 ///
 /// # Arguments
-/// - `app`       — Tauri AppHandle for `app.emit(…)`.
+/// - `emit`      — Callback invoked with each progress snapshot.
 /// - `jobs`      — Shared map of active Child processes, keyed by run_id.
 /// - `remote`    — rclone remote name (e.g. "gdrive").
 /// - `mapping`   — The saved mapping to execute.
 /// - `dest_abs`  — Absolute filesystem path for the destination.
 /// - `run_id`    — Unique ID for this run (monotonic i64 from the commands layer).
 pub async fn run_sync(
-    app: tauri::AppHandle,
+    emit: ProgressFn,
     jobs: Arc<Mutex<HashMap<i64, Job>>>,
     remote: String,
     mapping: Mapping,
@@ -508,7 +551,7 @@ pub async fn run_sync(
                 }],
                 error: Some(e),
             };
-            let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+            emit(&progress);
             return progress;
         }
     };
@@ -517,13 +560,14 @@ pub async fn run_sync(
     let dest_str = dest_abs.display().to_string();
 
     // ---------- ensure destination directory exists ----------
-    // Pre-flight: clear message when the destination volume isn't mounted.
-    let dir_result = match crate::store::check_dest_available(&dest_abs) {
-        Err(msg) => Err(msg),
-        Ok(()) => tokio::fs::create_dir_all(&dest_abs)
-            .await
-            .map_err(|e| format!("Cannot create destination folder “{}”: {}", dest_str, e)),
-    };
+    // Pre-flight: clear message when the destination volume isn't mounted,
+    // bounded so a wedged mount can't hang the run before it even starts.
+    let dir_result = tokio::task::spawn_blocking({
+        let dest_abs = dest_abs.clone();
+        move || prepare_dest_bounded(&dest_abs)
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("Internal error (thread panic): {}", e)));
     if let Err(msg) = dir_result {
         let progress = RunProgress {
             run_id,
@@ -544,7 +588,7 @@ pub async fn run_sync(
             }],
             error: Some(msg),
         };
-        let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+        emit(&progress);
         return progress;
     }
 
@@ -624,7 +668,7 @@ pub async fn run_sync(
                 log: vec![RunLogLine { text: msg.clone(), kind: RunLogKind::Error }],
                 error: Some(msg),
             };
-            let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+            emit(&progress);
             return progress;
         }
     };
@@ -669,7 +713,7 @@ pub async fn run_sync(
         error: None,
     };
 
-    let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+    emit(&progress);
 
     let mut last_emit = Instant::now();
     let mut error_lines: Vec<String> = Vec::new();
@@ -723,11 +767,7 @@ pub async fn run_sync(
                 .await;
                 let lost = match verdict {
                     Ok(Ok(Err(msg))) => Some(msg),
-                    Err(_) => Some(format!(
-                        "Destination stopped responding — \u{201c}{}\u{201d} is unreachable. \
-                         Reconnect it and sync again.",
-                        dest_str
-                    )),
+                    Err(_) => Some(dest_unreachable_msg(&dest_str)),
                     // Join error (blocking task panicked) or a healthy check.
                     Ok(Err(_)) | Ok(Ok(Ok(()))) => None,
                 };
@@ -786,7 +826,7 @@ pub async fn run_sync(
         if now.duration_since(last_emit) >= Duration::from_millis(EMIT_INTERVAL_MS)
             || parsed.stats.is_some()
         {
-            let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+            emit(&progress);
             last_emit = now;
         }
     }
@@ -929,7 +969,7 @@ pub async fn run_sync(
         push_log(&mut progress.log, RunLogLine { text: summary, kind: summary_kind });
     }
 
-    let _ = app.emit(RUN_UPDATE_EVENT, &progress);
+    emit(&progress);
     progress
 }
 
@@ -1176,6 +1216,46 @@ mod tests {
     #[test]
     fn backup_dir_is_none_at_a_filesystem_root() {
         assert!(backup_dir_for(Path::new("/"), 1).is_none());
+    }
+
+    #[test]
+    fn with_timeout_returns_none_when_closure_hangs() {
+        let result = with_timeout(Duration::from_millis(100), || {
+            std::thread::sleep(Duration::from_secs(2));
+            42
+        });
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn with_timeout_returns_some_for_a_fast_closure() {
+        let result = with_timeout(Duration::from_millis(100), || 42);
+        assert_eq!(result, Some(42));
+    }
+
+    #[test]
+    fn prepare_dest_bounded_creates_dir() {
+        let base = std::env::temp_dir().join(format!(
+            "trawl_prepare_dest_bounded_{}_{}",
+            std::process::id(),
+            Instant::now().elapsed().as_nanos()
+        ));
+        let nested = base.join("a").join("b");
+        let _ = std::fs::remove_dir_all(&base);
+
+        let result = prepare_dest_bounded(&nested);
+        assert!(result.is_ok(), "expected Ok, got {:?}", result);
+        assert!(nested.is_dir());
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn prepare_dest_bounded_rejects_unmounted_volume() {
+        let dest = Path::new("/mnt/trawl_not_a_real_volume/x");
+        let err = prepare_dest_bounded(dest).expect_err("an unmounted volume must not be writable");
+        assert!(err.contains("isn't mounted"), "unexpected message: {err}");
+        assert!(!dest.exists(), "must not create anything under an unmounted volume");
     }
 
     #[test]
