@@ -1322,7 +1322,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       dest_path: item.destPath,
       acknowledge_abuse: true,
       skip_shortcuts: false,
-      protect_local_edits: false,
+      protect_local_edits: true,
     }));
     api
       .saveMappings(newMappings)
