@@ -37,6 +37,19 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(scheduler::run_scheduler(handle));
 
+            // Linux: if WebKit's renderer process dies (crash, killed), the
+            // window goes blank and never recovers on its own. Reload instead.
+            #[cfg(target_os = "linux")]
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.with_webview(|wv| {
+                    use webkit2gtk::WebViewExt;
+                    wv.inner().connect_web_process_terminated(|view, reason| {
+                        eprintln!("webview renderer terminated ({reason:?}); reloading");
+                        view.reload();
+                    });
+                });
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
