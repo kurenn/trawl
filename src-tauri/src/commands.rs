@@ -308,7 +308,9 @@ pub async fn resolve_source_name(
     .map_err(|e| e.to_string())?)
 }
 
-#[tauri::command]
+// `(async)` on commands that touch the library/destination: a stalled SMB/GVFS
+// share would otherwise block the main thread and freeze the window.
+#[tauri::command(async)]
 pub fn list_local_folders(
     state: tauri::State<AppState>,
     subpath: String,
@@ -317,13 +319,13 @@ pub fn list_local_folders(
     store::list_local_folders(&root, &subpath)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn create_local_folder(state: tauri::State<AppState>, subpath: String) -> OpResult {
     let root = library_root_path(&state);
     store::create_local_folder(&root, &subpath)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn local_path_exists(state: tauri::State<AppState>, subpath: String) -> bool {
     let root = library_root_path(&state);
     store::local_path_exists(&root, &subpath)
@@ -332,7 +334,7 @@ pub fn local_path_exists(state: tauri::State<AppState>, subpath: String) -> bool
 /// Reveal a mapping's destination folder in the OS file manager (Finder,
 /// Explorer, …). The path is resolved here rather than passed in from the
 /// frontend so it always matches what a sync would actually write to.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn open_mapping_folder(app: AppHandle, id: String) -> Result<(), String> {
     let state = app.state::<AppState>();
     let mapping = store::load_mappings(&state.mappings_file)
@@ -362,7 +364,7 @@ pub fn load_mappings(state: tauri::State<AppState>) -> Vec<Mapping> {
     store::load_mappings(&state.mappings_file)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_mappings(
     state: tauri::State<AppState>,
     mappings: Vec<NewMapping>,
