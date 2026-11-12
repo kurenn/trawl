@@ -17,6 +17,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             // Resolve the platform-appropriate app data directory.
             let app_data_dir = app
@@ -68,6 +72,9 @@ pub fn run() {
             commands::local_path_exists,
             commands::open_mapping_folder,
             commands::list_mapping_dir,
+            commands::storage_usage,
+            commands::get_open_at_login,
+            commands::set_open_at_login,
             commands::load_mappings,
             commands::save_mappings,
             commands::delete_mapping,

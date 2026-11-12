@@ -12,6 +12,7 @@ import type {
   Api,
   ConnectionState,
   DirEntry,
+  StorageUsage,
   FolderNode,
   ListSourceArgs,
   Mapping,
@@ -139,6 +140,18 @@ const tauriApiImpl: Api = {
   },
 
   // ---------- settings ----------
+
+  storageUsage(): Promise<StorageUsage> {
+    return invoke<StorageUsage>("storage_usage");
+  },
+
+  getOpenAtLogin(): Promise<boolean> {
+    return invoke<boolean>("get_open_at_login");
+  },
+
+  setOpenAtLogin(on: boolean): Promise<void> {
+    return invoke<void>("set_open_at_login", { on });
+  },
 
   getSettings(): Promise<Settings> {
     return invoke<Settings>("get_settings");

@@ -641,6 +641,14 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     [settings],
   );
 
+  const noApi = () => Promise.reject(new Error("Not ready yet"));
+  const storageUsage = useCallback(() => apiRef.current?.storageUsage() ?? noApi(), []);
+  const getOpenAtLogin = useCallback(() => apiRef.current?.getOpenAtLogin() ?? noApi(), []);
+  const setOpenAtLogin = useCallback(
+    (on: boolean) => apiRef.current?.setOpenAtLogin(on) ?? noApi(),
+    [],
+  );
+
   /* -------------------------------------------------------------------------
      PREVIEW — paste a link, look inside, start copying
      ---------------------------------------------------------------------- */
@@ -987,6 +995,9 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     autoIntervalMinutes,
     setAutoIntervalMinutes,
     setMinimizeToTray,
+    storageUsage,
+    getOpenAtLogin,
+    setOpenAtLogin,
     isEmpty,
     headline,
     subline,

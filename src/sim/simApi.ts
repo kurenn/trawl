@@ -9,6 +9,7 @@ import type {
   Api,
   ConnectionState,
   DirEntry,
+  StorageUsage,
   FolderNode,
   ListSourceArgs,
   Mapping,
@@ -356,6 +357,21 @@ class SimApi implements Api {
   }
 
   // ---------- settings ----------
+
+  private openAtLogin = false;
+
+  async storageUsage(): Promise<StorageUsage> {
+    await delay(900);
+    return { foldersBytes: 57_016_000_000 * Math.max(1, this.mappings.length), diskTotal: 512_000_000_000, diskFree: 412_000_000_000 };
+  }
+
+  async getOpenAtLogin(): Promise<boolean> {
+    return this.openAtLogin;
+  }
+
+  async setOpenAtLogin(on: boolean): Promise<void> {
+    this.openAtLogin = on;
+  }
 
   async getSettings(): Promise<Settings> {
     return { ...this.settings };

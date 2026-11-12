@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::locks;
 use crate::models::{
-    DirEntry, FolderNode, Mapping, MappingStatus, NewMapping, OpResult, RunProgress, Settings, SourceKind,
+    DirEntry, FolderNode, StorageUsage, Mapping, MappingStatus, NewMapping, OpResult, RunProgress, Settings, SourceKind,
     SourceProvider,
 };
 
@@ -331,6 +331,40 @@ pub fn list_local_folders(
     nodes.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     Ok(nodes)
+}
+
+/// Total bytes of the files under `root`. Symlinks aren't followed; unreadable
+/// entries are skipped. Walks the whole tree, so it's slow on a large network
+/// share — call it off the main thread.
+pub fn dir_size(root: &Path) -> u64 {
+    let mut total = 0;
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let Ok(meta) = entry.metadata() else { continue }; // doesn't follow symlinks
+            if meta.is_dir() {
+                stack.push(entry.path());
+            } else if meta.is_file() {
+                total += meta.len();
+            }
+        }
+    }
+    total
+}
+
+/// Bytes used by the given destinations (a destination nested inside another
+/// is counted once) and the size/free space of the disk holding `library_root`.
+pub fn storage_usage(library_root: &Path, dests: &[PathBuf]) -> Result<StorageUsage, String> {
+    let folders_bytes = dests
+        .iter()
+        .filter(|d| !dests.iter().any(|o| o != *d && d.starts_with(o)))
+        .map(|d| dir_size(d))
+        .sum();
+    let disk_total = fs4::total_space(library_root).map_err(|e| format!("Can't read disk size: {e}"))?;
+    let disk_free =
+        fs4::available_space(library_root).map_err(|e| format!("Can't read free space: {e}"))?;
+    Ok(StorageUsage { folders_bytes, disk_total, disk_free })
 }
 
 /// Lists files and folders in `base/subpath` (a mapping's destination), folders
@@ -800,6 +834,22 @@ pub fn set_mapping_protect_local_edits(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn storage_usage_counts_nested_destinations_once() {
+        let base = std::env::temp_dir().join("trawl_storage_usage_test");
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("a/inner")).unwrap();
+        fs::write(base.join("a/one.stl"), [0u8; 100]).unwrap();
+        fs::write(base.join("a/inner/two.stl"), [0u8; 20]).unwrap();
+        assert_eq!(dir_size(&base.join("a")), 120);
+
+        let dests = vec![base.join("a"), base.join("a/inner"), base.join("missing")];
+        let u = storage_usage(&base, &dests).unwrap();
+        assert_eq!(u.folders_bytes, 120);
+        assert!(u.disk_total >= u.disk_free && u.disk_total > 0);
+        let _ = fs::remove_dir_all(&base);
+    }
 
     #[test]
     fn list_dir_lists_folders_first_and_stays_inside_base() {
