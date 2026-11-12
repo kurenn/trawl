@@ -471,17 +471,18 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       // Drop the optimistic placeholder if no real run took over, and refresh
       // the true status (incl. last_error) from disk.
       const errMessage = errMsg(e);
-      const lp = liveProgressRef.current.get(mappingId);
-      if (lp && lp.runId === 0) {
+      // Decide from `prev`, not liveProgressRef: the ref is only refreshed on
+      // render and can be stale if startSync rejects before the placeholder renders.
+      setLiveProgress((prev) => {
+        const lp = prev.get(mappingId);
+        if (!lp || lp.runId !== 0) return prev;
         if (activeMappingRef.current === mappingId) {
           setActiveRun({ ...lp, status: "failed", error: errMessage });
         }
-        setLiveProgress((prev) => {
-          const n = new Map(prev);
-          n.delete(mappingId);
-          return n;
-        });
-      }
+        const n = new Map(prev);
+        n.delete(mappingId);
+        return n;
+      });
       // Overlay the failure so Home/Folder show the problem article; the next
       // loadMappings or run event replaces the row. A lock conflict ("already
       // syncing") means a run already holds the lock, so no failure is shown
