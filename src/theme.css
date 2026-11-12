@@ -103,6 +103,13 @@ button { cursor: pointer; }
 .bar.thin { height: 2px; }
 
 /* Errors */
+/* Icon-only button (always give it aria-label + title). */
+.icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r);
+  background: none; color: var(--quiet); cursor: pointer;
+}
+.icon:hover { background: var(--field); color: var(--text); }
 .err { color: var(--red); font-size: 14px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
 

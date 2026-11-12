@@ -47,7 +47,7 @@ export default function Contents({ f }: { f: FolderRow }) {
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h2 className="lbl">Contents</h2>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         <nav aria-label="Folder path" style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap", gap: 6, fontSize: 14 }}>
           {[f.source_name, ...parts].map((name, i) =>
             i === parts.length ? (
@@ -60,8 +60,19 @@ export default function Contents({ f }: { f: FolderRow }) {
             ),
           )}
         </nav>
-        <button type="button" className="lnk" style={{ fontSize: 14 }} onClick={() => (path ? f.openItem(path) : f.openFolder())}>
-          Open in file manager
+        <button
+          type="button"
+          className="icon"
+          style={{ marginRight: -7 }}
+          title="Open in file manager"
+          aria-label="Open in file manager"
+          onClick={() => (path ? f.openItem(path) : f.openFolder())}
+        >
+          {/* folder with an arrow pointing out */}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 19H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v3" />
+            <path d="M16 15l5-5M17 10h4v4" />
+          </svg>
         </button>
       </div>
 
