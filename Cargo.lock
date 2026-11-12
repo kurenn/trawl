@@ -4345,6 +4345,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "trawl-core",
+ "webkit2gtk",
 ]
 
 [[package]]

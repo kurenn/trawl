@@ -30,3 +30,7 @@ tokio = { version = "1", features = ["process", "io-util", "rt", "rt-multi-threa
 dirs = "5"
 chrono = { version = "0.4", features = ["serde"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# Same version wry already pulls in — used to reload a crashed renderer.
+webkit2gtk = "2.0"
+

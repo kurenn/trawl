@@ -458,7 +458,7 @@ const DEST_CHECK_EVERY_TICKS: u32 = 30;
 
 /// A liveness stat that takes longer than this means the mount is wedged, not
 /// merely slow — a hung SMB/NFS share blocks `stat` indefinitely.
-pub const DEST_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+pub const DEST_CHECK_TIMEOUT: Duration = Duration::from_secs(45);
 
 /// Run `f` on its own std thread and wait up to `dur` for it to finish.
 /// Returns `None` on timeout.
