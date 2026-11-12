@@ -338,7 +338,7 @@ export interface RunView {
   name: string;
   status: MappingStatus;
   isRunning: boolean;
-  starting: boolean; // placeholder run, id not known yet
+  starting: boolean; // no run id yet — Stop unavailable
   pct: number;
   barWidth: string;
   timeLeft: string;

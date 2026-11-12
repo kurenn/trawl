@@ -471,30 +471,33 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       // Drop the optimistic placeholder if no real run took over, and refresh
       // the true status (incl. last_error) from disk.
       const errMessage = errMsg(e);
-      setLiveProgress((prev) => {
-        const lp = prev.get(mappingId);
-        if (lp && lp.runId === 0) {
-          if (activeMappingRef.current === mappingId) {
-            setActiveRun({ ...lp, status: "failed", error: errMessage });
-          }
+      const lp = liveProgressRef.current.get(mappingId);
+      if (lp && lp.runId === 0) {
+        if (activeMappingRef.current === mappingId) {
+          setActiveRun({ ...lp, status: "failed", error: errMessage });
+        }
+        setLiveProgress((prev) => {
           const n = new Map(prev);
           n.delete(mappingId);
           return n;
-        }
-        return prev;
-      });
+        });
+      }
       // Overlay the failure so Home/Folder show the problem article; the next
-      // loadMappings or run event replaces the row, so it never sticks. A
-      // "running" row means another process (CLI) holds the lock: leave it.
+      // loadMappings or run event replaces the row. A lock conflict ("already
+      // syncing") means a run already holds the lock, so no failure is shown
+      // and the row stays as reloaded. Rows still running locally are kept.
+      const locked = /already syncing/i.test(errMessage);
       apiRef.current
         ?.loadMappings()
         .then((maps) =>
-          setMappings(
-            maps.map((m) =>
-              m.id === mappingId && m.last_status !== "running"
+          setMappings((prev) =>
+            maps.map((m) => {
+              const cur = prev.find((x) => x.id === m.id);
+              if (cur && cur.last_status === "running" && m.id !== mappingId) return cur;
+              return m.id === mappingId && !locked
                 ? { ...m, last_status: "failed" as MappingStatus, last_error: errMessage }
-                : m,
-            ),
+                : m;
+            }),
           ),
         )
         .catch(() => {});

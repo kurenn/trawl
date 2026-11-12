@@ -359,8 +359,13 @@ class SimApi implements Api {
   // ---------- runs ----------
 
   async startSync(mappingId: string): Promise<number> {
-    const runId = this.runCounter++;
     const mapping = this.mappings.find((m) => m.id === mappingId);
+    // Rejections happen before any run exists, like the backend.
+    if (mapping && /busy/i.test(mapping.source_name))
+      throw new Error("This mapping is already syncing.");
+    if (mapping && /stall/i.test(mapping.source_name))
+      throw new Error("Destination stopped responding");
+    const runId = this.runCounter++;
     if (!mapping) return runId;
 
     const { bytes: bytesTotal, files: filesTotal } = genTotals(mapping.source_name);
