@@ -8,6 +8,7 @@
 import type {
   Api,
   ConnectionState,
+  DirEntry,
   FolderNode,
   ListSourceArgs,
   Mapping,
@@ -245,6 +246,23 @@ class SimApi implements Api {
   async localPathExists(subpath: string): Promise<boolean> {
     // Known in NAS catalog or in the sim-created list
     return subpath in NAS || this.created.includes(subpath);
+  }
+
+  async listMappingDir(id: string, subpath: string): Promise<DirEntry[]> {
+    await delay(250);
+    const mapping = this.mappings.find((m) => m.id === id);
+    if (!mapping) throw new Error("That mapping no longer exists.");
+    // A small fake tree: folders two levels deep, a few files everywhere.
+    const depth = subpath ? subpath.split("/").length : 0;
+    const dirs = depth === 0 ? ["Renders", "Supported", "Unsupported"] : depth < 3 ? ["Part A", "Part B"] : [];
+    const files = depth === 0 ? ["Read me.pdf"] : ["base.stl", "body.stl", "preview.png"];
+    const at = (name: string) => (subpath ? `${subpath}/${name}` : name);
+    // The sim never persists run results, so every folder lists as copied.
+    const t = Math.floor(Date.now() / 1000) - 7200;
+    return [
+      ...dirs.map((name) => ({ path: at(name), name, isDir: true, size: 0, modified: t })),
+      ...files.map((name, i) => ({ path: at(name), name, isDir: false, size: (i + 1) * 4_812_345 + depth * 991, modified: t - i * 86400 * 40 })),
+    ];
   }
 
   async openMappingFolder(id: string): Promise<void> {

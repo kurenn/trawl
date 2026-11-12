@@ -109,6 +109,18 @@ export interface FolderNode {
   hasChildren: boolean;
 }
 
+/** One entry in a mapping's destination folder (== Rust `DirEntry`). */
+export interface DirEntry {
+  /** Relative to the mapping's destination ("a/b.stl"). */
+  path: string;
+  name: string;
+  isDir: boolean;
+  /** Bytes; 0 for folders. */
+  size: number;
+  /** Unix seconds, or null if unknown. */
+  modified: number | null;
+}
+
 export interface ListSourceArgs {
   provider: SourceProvider;
   kind: SourceKind;
@@ -211,9 +223,13 @@ export interface Api {
   createLocalFolder(subpath: string): Promise<{ ok: boolean; error?: string }>;
   /** Does <libraryRoot>/<subpath> already exist on disk? */
   localPathExists(subpath: string): Promise<boolean>;
-  /** Reveal a mapping's destination folder in the OS file manager. Rejects
-   *  with a user-facing message if the folder is missing or unmounted. */
-  openMappingFolder(id: string): Promise<void>;
+  /** Open a mapping's destination folder — or, with `subpath`, a file or
+   *  folder inside it — with the OS default app. Rejects with a user-facing
+   *  message if the folder is missing or unmounted. */
+  openMappingFolder(id: string, subpath?: string): Promise<void>;
+  /** List files and folders at `subpath` inside a mapping's destination,
+   *  folders first. Empty if nothing has been copied yet. */
+  listMappingDir(id: string, subpath: string): Promise<DirEntry[]>;
 
   // --- mappings persistence ---
   loadMappings(): Promise<Mapping[]>;
@@ -299,6 +315,10 @@ export interface FolderRow extends Mapping {
   openRun: () => void;
   openFolder: () => void;
   openFolderError: string;
+  /** List `subpath` inside this folder's destination. */
+  listDir: (subpath: string) => Promise<DirEntry[]>;
+  /** Open a file or subfolder with the OS default app. */
+  openItem: (subpath: string) => void;
   checkNow: () => void;
   toggleAuto: () => void;
   toggleProtectLocalEdits: () => void;

@@ -508,11 +508,11 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
   // Reveal a mapping's destination folder in Finder/Explorer. Failures (folder
   // never created, volume unmounted) surface inline on the card and clear
   // themselves, so a one-off miss doesn't linger as if it were run state.
-  const openFolder = useCallback((mappingId: string) => {
+  const openFolder = useCallback((mappingId: string, subpath?: string) => {
     const api = apiRef.current;
     if (!api) return;
     setOpenFolderError(null);
-    api.openMappingFolder(mappingId).catch((e: unknown) => {
+    api.openMappingFolder(mappingId, subpath).catch((e: unknown) => {
       const message = e instanceof Error ? e.message : String(e);
       setOpenFolderError({ id: mappingId, message });
       if (openFolderErrorTimer.current !== null) {
@@ -872,6 +872,9 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
           },
           openRun: () => openRun(m.id),
           openFolder: () => openFolder(m.id),
+          listDir: (subpath: string) =>
+            apiRef.current ? apiRef.current.listMappingDir(m.id, subpath) : Promise.resolve([]),
+          openItem: (subpath: string) => openFolder(m.id, subpath),
           openFolderError:
             openFolderError?.id === m.id ? openFolderError.message : "",
           checkNow: () => startRun(m.id),

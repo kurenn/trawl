@@ -1,5 +1,6 @@
 import { useTrawl } from "../store";
 import { fmtInterval } from "../format";
+import Contents from "./Contents";
 
 const sub = { fontSize: 13.5, color: "var(--quiet)" } as const;
 const col = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } as const;
@@ -32,6 +33,8 @@ export default function Folder() {
           <button type="button" className="lnk" style={{ alignSelf: "flex-start", fontSize: 14 }} onClick={f.openRun}>Show progress</button>
         )}
       </section>
+
+      <Contents key={f.id} f={f} />
 
       <section className="rows">
         <div className="row">

@@ -14,7 +14,7 @@ use tauri_plugin_opener::OpenerExt;
 use trawl_core::locks;
 
 use crate::models::{
-    ConnectionPhase, ConnectionState, FolderNode, ListSourceArgs, Mapping, NewMapping, OpResult,
+    ConnectionPhase, ConnectionState, DirEntry, FolderNode, ListSourceArgs, Mapping, NewMapping, OpResult,
     ProgressFn, Settings, SourceKind, SourceProvider, RUN_UPDATE_EVENT, STATE_CHANGED_EVENT,
 };
 use crate::{pcloud, rclone, store};
@@ -331,32 +331,59 @@ pub fn local_path_exists(state: tauri::State<AppState>, subpath: String) -> bool
     store::local_path_exists(&root, &subpath)
 }
 
-/// Reveal a mapping's destination folder in the OS file manager (Finder,
-/// Explorer, …). The path is resolved here rather than passed in from the
-/// frontend so it always matches what a sync would actually write to.
-#[tauri::command(async)]
-pub fn open_mapping_folder(app: AppHandle, id: String) -> Result<(), String> {
-    let state = app.state::<AppState>();
+/// A mapping's destination, resolved here rather than passed in from the
+/// frontend so it always matches what a sync would actually write to. Errors
+/// if the mapping is gone or its volume isn't mounted.
+fn mapping_dest(state: &tauri::State<AppState>, id: &str) -> Result<PathBuf, String> {
     let mapping = store::load_mappings(&state.mappings_file)
         .into_iter()
         .find(|m| m.id == id)
         .ok_or_else(|| "That mapping no longer exists.".to_string())?;
-
-    let root = library_root_path(&state);
+    let root = library_root_path(state);
     let dest = store::effective_dest(&root, &mapping.dest_path, &mapping.dest_subpath)?;
-
     // Distinguish "volume not mounted" (actionable) from "never synced yet".
     store::check_dest_available(&dest)?;
+    Ok(dest)
+}
+
+/// Open a mapping's destination folder — or, with `subpath`, a file or folder
+/// inside it — with the OS default app (Finder/Explorer for folders).
+#[tauri::command(async)]
+pub fn open_mapping_folder(
+    app: AppHandle,
+    id: String,
+    subpath: Option<String>,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let dest = mapping_dest(&state, &id)?;
     if !dest.exists() {
         return Err(format!(
             "“{}” doesn't exist yet — sync this mapping once to create it.",
             dest.display()
         ));
     }
-
+    let target = match subpath.as_deref() {
+        Some(sp) if !sp.is_empty() => store::resolve_dest(&dest, sp)?,
+        _ => dest,
+    };
     app.opener()
-        .open_path(dest.to_string_lossy().to_string(), None::<&str>)
-        .map_err(|e| format!("Couldn't open the folder: {e}"))
+        .open_path(target.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| format!("Couldn't open it: {e}"))
+}
+
+/// List files and folders inside a mapping's destination (`subpath` relative
+/// to it). Async: a stalled share blocks a worker thread, not the window.
+#[tauri::command(async)]
+pub fn list_mapping_dir(
+    state: tauri::State<AppState>,
+    id: String,
+    subpath: String,
+) -> Result<Vec<DirEntry>, String> {
+    let dest = mapping_dest(&state, &id)?;
+    if !dest.exists() {
+        return Ok(Vec::new());
+    }
+    store::list_dir(&dest, &subpath)
 }
 
 #[tauri::command]

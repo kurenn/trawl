@@ -75,6 +75,15 @@ button { cursor: pointer; }
 /* Rows */
 .rows > :last-child { border-bottom: 1px solid var(--line); }
 .row { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+/* A row that is itself a button (folder contents). */
+.row.item {
+  width: 100%; padding: 12px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text);
+  font: inherit; font-size: 15px; text-align: left; cursor: pointer;
+}
+.rows > .row.item:last-child { border-bottom: 1px solid var(--line); }
+.row.item:hover .name { text-decoration: underline; text-decoration-color: var(--underline); text-underline-offset: 4px; }
+.row.item .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.row.item .meta { color: var(--quiet); font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Toggle: <input type="checkbox" class="tog"> */
 .tog {
@@ -94,6 +103,13 @@ button { cursor: pointer; }
 .bar.thin { height: 2px; }
 
 /* Errors */
+/* Icon-only button (always give it aria-label + title). */
+.icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r);
+  background: none; color: var(--quiet); cursor: pointer;
+}
+.icon:hover { background: var(--field); color: var(--text); }
 .err { color: var(--red); font-size: 14px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
 
