@@ -496,6 +496,7 @@ class SimApi implements Api {
           log: newLog,
           error: failError,
         };
+        this.persistResult(r.snapshot);
         this.emit(r.snapshot);
         clearInterval(r.intervalId);
         this.runs.delete(runId);
@@ -538,6 +539,7 @@ class SimApi implements Api {
           etaSec: 0,
           log: newLog,
         };
+        this.persistResult(r.snapshot);
         this.emit(r.snapshot);
         clearInterval(r.intervalId);
         this.runs.delete(runId);
@@ -612,6 +614,7 @@ class SimApi implements Api {
         ),
       ],
     };
+    this.persistResult(finalSnap);
     this.emit(finalSnap);
   }
 
@@ -623,6 +626,23 @@ class SimApi implements Api {
   }
 
   // ---------- private ----------
+
+  /** Like the real backend: a run's outcome is saved to the mapping when it ends. */
+  private persistResult(snap: RunProgress): void {
+    // Replace, don't mutate: loadMappings hands these objects to React state.
+    this.mappings = this.mappings.map((m) =>
+      m.id !== snap.mappingId
+        ? m
+        : {
+            ...m,
+            last_status: snap.status,
+            last_at: new Date().toISOString(),
+            last_files: snap.filesDone,
+            last_bytes: snap.bytesDone,
+            last_error: snap.error,
+          },
+    );
+  }
 
   private emit(p: RunProgress): void {
     for (const cb of this.listeners) {
