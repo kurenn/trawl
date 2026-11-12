@@ -4,14 +4,17 @@ All notable changes to Trawl are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the release
 workflow pulls the matching `## [version]` section into each GitHub Release.
 
-## [Unreleased]
+## [0.4.0]
 
 - **Settings, grouped** — Settings is split into Updates, Storage, Accounts and App. Storage now shows how much space your folders take and how much is free on the disk. App adds "Open Trawl when I log in".
-- **Browse a folder's files** — each folder's screen now lists what has been copied. Click a subfolder to go into it, use the path above the list to go back up, and click a file to open it in its default app.
+- **Browse a folder's files** — each folder's screen now lists what has been copied. Click a subfolder to go into it, use the path above the list to go back up, and click a file to open it in its default app. An icon next to the path opens the folder you're looking at in your file manager.
 - **New "Paper" look** — the dark dashboard, sidebar and two-tree composer are replaced by one calm column: paste a Google Drive or pCloud folder link, check the preview, and start copying. Folders live in a plain list with one status line each; problems get their own card with a one-click fix; each folder has a detail screen, and a live Copying screen replaces the run log. Settings are collected on a single page.
 - **Skip shortcuts fix** — a folder that loops back on itself now offers "Skip shortcuts and try again" instead of a bare error.
 - **"Stop syncing" keeps your files** — it only removes the folder from Trawl; files already copied stay on your computer.
 - **Existing manual folders read "Paused"** — folders that had automatic checks off now show as Paused after upgrading; "Resume" turns checks back on.
+- **Rides out a slow network share** — a destination that stops responding for a few seconds no longer fails the sync; Trawl now waits up to 45 seconds before calling it unreachable.
+- **The window stays responsive on a stalled share** — reading or writing the library no longer freezes the window while a network share hangs.
+- **A blank window recovers by itself** (Linux) — if the window's renderer crashes, Trawl reloads it instead of staying blank until restart.
 
 ## [0.3.0]
 
