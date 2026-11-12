@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "check": "node scripts/check-format.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

@@ -180,12 +180,16 @@ class SimApi implements Api {
   // ---------- connection ----------
 
   async detectConnection(): Promise<ConnectionState> {
-    // Sim is always connected so the full UI is explorable
-    return { phase: "connected", remote: "gdrive", error: null };
+    return this.driveConnected
+      ? { phase: "connected", remote: "gdrive", error: null }
+      : { phase: "disconnected", remote: "gdrive", error: null };
   }
+
+  private driveConnected = false;
 
   async connectDrive(): Promise<ConnectionState> {
     await delay(600);
+    this.driveConnected = true;
     return { phase: "connected", remote: "gdrive", error: null };
   }
 
@@ -397,7 +401,11 @@ class SimApi implements Api {
       simSeconds,
     };
 
-    const isFailMode = /dragon/i.test(mapping.source_name);
+    const failError: string | null = /dragon/i.test(mapping.source_name)
+      ? "403 abuse-flagged file — enable Acknowledge abuse on this mapping"
+      : /loop/i.test(mapping.source_name) && !mapping.skip_shortcuts
+        ? "Folder loop in source (“Shared loop”) — fix or exclude it, then re-sync."
+        : null;
 
     const tick = () => {
       const r = activeRun;
@@ -419,32 +427,35 @@ class SimApi implements Api {
       const newLog = [...snap.log];
 
       // --- FAILURE path ---
-      if (isFailMode && snap.bytesDone + add >= snap.bytesTotal * 0.4) {
+      if (failError && snap.bytesDone + add >= snap.bytesTotal * 0.4) {
         const bytesDone = snap.bytesTotal * 0.4;
         const clock = fmtClock(r.t0, r.elapsed);
         newLog.push(
           logLine(
             clock +
               " ERROR : " +
-              mapping.dest_subpath +
-              "/dragon_body.stl: Failed to copy: googleapi 403 — file flagged as malware/spam",
+              (failError.startsWith("403")
+                ? mapping.dest_subpath +
+                  "/dragon_body.stl: Failed to copy: googleapi 403 — file flagged as malware/spam"
+                : failError),
             "error",
           ),
         );
-        newLog.push(
-          logLine(
-            clock +
-              " NOTICE: retry with --drive-acknowledge-abuse to override",
-            "notice",
-          ),
-        );
+        if (failError.startsWith("403")) {
+          newLog.push(
+            logLine(
+              clock +
+                " NOTICE: retry with --drive-acknowledge-abuse to override",
+              "notice",
+            ),
+          );
+        }
         r.snapshot = {
           ...snap,
           status: "failed",
           bytesDone,
           log: newLog,
-          error:
-            "403 abuse-flagged file — enable Acknowledge abuse on this mapping",
+          error: failError,
         };
         this.emit(r.snapshot);
         clearInterval(r.intervalId);

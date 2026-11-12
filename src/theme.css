@@ -1,157 +1,103 @@
-/* ============================================================================
-   Trawl — "Slate" design tokens (single source of truth)
-   Values transcribed verbatim from the design handoff (README + prototype).
-   Every component must read colors/spacing from these variables — do not
-   hardcode hexes in components.
-   ============================================================================ */
-
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+/* Trawl "Paper" theme: tokens, resets, and the shared class contract. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
 
 :root {
-  /* ---- Color: backgrounds ---- */
-  --bg-app: #1b1d23; /* main content background */
-  --bg-sidebar: #15171c; /* sidebar, tree panes, inputs, log box */
-  --bg-card: #212430; /* mapping cards, composer, run panel */
-  --bg-hover: #1d2026; /* row hover */
-  --bg-button-neutral: #2b2e39; /* secondary buttons */
-  --bg-input-deep: #0f1115; /* new-folder inline input */
-
-  /* ---- Color: borders ---- */
-  --border-subtle: #25282f; /* sidebar / pane dividers */
-  --border-card: #2c2f3a; /* card & input borders */
-  --border-button: #363a46; /* secondary button border */
-
-  /* ---- Color: text ---- */
-  --text-primary: #e7e9ee; /* headings, selected folder names */
-  --text-secondary: #cfd2da; /* sub-labels */
-  --text-muted: #7b808c; /* meta text, descriptions */
-  --text-faint: #565b66; /* mono path prefixes, hints */
-  --text-faint-2: #646975; /* alt faint */
-  --text-tree: #c5c8d2; /* unselected folder names */
-  --text-folder-glyph: #6b7280; /* unselected folder glyph stroke */
-
-  /* ---- Color: accent (teal) ---- */
-  --accent: #2dd4bf;
-  --accent-ink: #0c1512; /* text on teal buttons */
-  --accent-10: rgba(45, 212, 191, 0.1); /* selected row bg, ghost button bg */
-  --accent-12: rgba(45, 212, 191, 0.12);
-  --accent-15: rgba(45, 212, 191, 0.15);
-  --accent-25: rgba(45, 212, 191, 0.25);
-  --accent-28: rgba(45, 212, 191, 0.28); /* selection highlight */
-
-  /* ---- Color: status ---- */
-  --status-amber: #f59e0b; /* syncing / running, queue, path exists */
-  --status-red: #f43f5e; /* failed, destructive, cancel */
-  --status-red-soft: #f08a99;
-  --status-red-soft-2: #f87171;
-  --status-grey: #9499a3; /* cancelled */
-  --status-idle: #7b808c; /* not synced */
-
-  /* status pill backgrounds (~12% alpha) */
-  --amber-12: rgba(245, 158, 11, 0.12);
-  --red-12: rgba(244, 63, 94, 0.12);
-  --red-10: rgba(244, 63, 94, 0.1);
-  --red-07: rgba(244, 63, 94, 0.07);
-  --red-20: rgba(244, 63, 94, 0.2);
-  --red-30: rgba(244, 63, 94, 0.3);
-  --red-40: rgba(244, 63, 94, 0.4);
-  --grey-12: rgba(148, 153, 163, 0.12);
-  --idle-12: rgba(123, 128, 140, 0.12);
-
-  /* failed-card border tints */
-  --card-bd-failed: #3a2329;
-  --card-bd-running: #3a3320;
-
-  /* ---- Fonts ---- */
-  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
-
-  /* ---- Radii ---- */
-  --r-card: 9px;
-  --r-panel: 10px;
-  --r-window: 11px;
-  --r-button: 7px;
-  --r-button-sm: 6px;
-  --r-pill: 20px;
-  --r-logo: 7px;
+  --bg: #fff;
+  --text: #18181b;
+  --quiet: #6b6b73;
+  --line: #ececee;
+  --field: #f4f4f5;
+  --field-hover: #ebebed;
+  --toggle-off: #e4e4e7;
+  --underline: #c9c9ce;
+  --blue: #2563eb;
+  --red: #c2362b;
+  --red-underline: #ebb7b2;
+  --font-ui: Inter, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --r: 4px;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
 body {
   margin: 0;
-  padding: 0;
-  background: var(--bg-sidebar);
-}
-
-#root {
-  min-height: 100vh;
-}
-
-::selection {
-  background: var(--accent-28);
-}
-
-::-webkit-scrollbar {
-  width: 11px;
-  height: 11px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #2c2f3a;
-  border: 3px solid #1b1d23;
-  border-radius: 8px;
-}
-
-input {
-  font-family: inherit;
-}
-button {
-  white-space: nowrap;
-  font-family: inherit;
-}
-
-@keyframes spin {
-  100% {
-    transform: rotate(360deg);
-  }
-}
-@keyframes pulseDot {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-@keyframes barShine {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(280%);
-  }
-}
-
-/* App shell baseline (the prototype's outer wrapper) */
-.app-shell {
-  display: flex;
-  min-height: 100vh;
-  background: var(--bg-app);
-  color: var(--text-primary);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
 }
+h1, h2, h3, p { margin: 0; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
-/* Utility: a hover-able row that lifts to --bg-hover.
-   Components apply .hover-row and rely on this for the prototype's
-   style-hover="background:#1d2026" behavior. */
-.hover-row:hover {
-  background: var(--bg-hover) !important;
+/* Layout */
+.app { min-height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.hdr { display: flex; align-items: center; padding: 28px 40px; }
+.mark { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+.mark::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--text); }
+.page { width: 100%; max-width: 640px; margin: 0 auto; padding: 32px 24px 96px; display: flex; flex-direction: column; gap: 48px; }
+
+/* Type */
+.hero { font-size: 44px; line-height: 1.1; font-weight: 600; letter-spacing: -0.035em; }
+.big { font-size: 40px; line-height: 1.1; font-weight: 600; letter-spacing: -0.03em; }
+.lbl { font-size: 13px; font-weight: 500; color: var(--quiet); }
+.quiet { color: var(--quiet); }
+.mono { font-family: var(--font-mono); }
+
+/* Controls */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 18px; border: 0; border-radius: var(--r);
+  background: var(--field); color: var(--text); font-size: 14px; font-weight: 500;
+}
+.btn:hover { background: var(--field-hover); }
+.btn.p { background: var(--text); color: var(--bg); }
+.btn.p:hover { background: #000; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.lnk {
+  padding: 0; border: 0; background: none; color: var(--text); font-size: inherit;
+  text-decoration: underline; text-decoration-color: var(--underline); text-underline-offset: 4px;
+}
+.lnk:hover { text-decoration-color: var(--text); }
+.lnk.danger { color: var(--red); text-decoration-color: var(--red-underline); }
+.lnk.danger:hover { text-decoration-color: var(--red); }
+.field {
+  width: 100%; height: 56px; padding: 0 20px; border: 0; border-radius: var(--r);
+  background: var(--field); color: var(--text); font-size: 15px;
+}
+.field::placeholder { color: var(--quiet); }
+.field:hover { background: var(--field-hover); }
+
+/* Rows */
+.rows > :last-child { border-bottom: 1px solid var(--line); }
+.row { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+
+/* Toggle: <input type="checkbox" class="tog"> */
+.tog {
+  appearance: none; flex: none; position: relative; width: 36px; height: 22px; margin: 0;
+  border-radius: var(--r); background: var(--toggle-off); cursor: pointer;
+}
+.tog::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 2px; background: var(--bg); transition: transform 0.15s;
+}
+.tog:checked { background: var(--text); }
+.tog:checked::after { transform: translateX(14px); }
+
+/* Progress */
+.bar { height: 4px; border-radius: 0; background: var(--line); overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--blue); }
+.bar.thin { height: 2px; }
+
+/* Errors */
+.err { color: var(--red); font-size: 14px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
