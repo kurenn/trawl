@@ -47,18 +47,23 @@ export default function Contents({ f }: { f: FolderRow }) {
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h2 className="lbl">Contents</h2>
-      <nav aria-label="Folder path" style={{ display: "flex", flexWrap: "wrap", gap: 6, fontSize: 14 }}>
-        {[f.source_name, ...parts].map((name, i) =>
-          i === parts.length ? (
-            <span key={i} aria-current="location">{name}</span>
-          ) : (
-            <span key={i} style={{ display: "contents" }}>
-              <button type="button" className="lnk quiet" onClick={() => go(parts.slice(0, i).join("/"))}>{name}</button>
-              <span className="quiet">/</span>
-            </span>
-          ),
-        )}
-      </nav>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+        <nav aria-label="Folder path" style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap", gap: 6, fontSize: 14 }}>
+          {[f.source_name, ...parts].map((name, i) =>
+            i === parts.length ? (
+              <span key={i} aria-current="location">{name}</span>
+            ) : (
+              <span key={i} style={{ display: "contents" }}>
+                <button type="button" className="lnk quiet" onClick={() => go(parts.slice(0, i).join("/"))}>{name}</button>
+                <span className="quiet">/</span>
+              </span>
+            ),
+          )}
+        </nav>
+        <button type="button" className="lnk" style={{ fontSize: 14 }} onClick={() => (path ? f.openItem(path) : f.openFolder())}>
+          Open in file manager
+        </button>
+      </div>
 
       {error ? (
         <p className="err" role="alert">{error}</p>
