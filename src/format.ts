@@ -3,41 +3,7 @@
    Transcribed from the prototype (Trawl App.dc.html) so numbers/labels match.
    ============================================================================ */
 
-import type { MappingStatus, StatusMeta } from "./types";
-
-/** STATUS map — verbatim from prototype. */
-export const STATUS: Record<MappingStatus, StatusMeta> = {
-  succeeded: {
-    label: "Synced",
-    color: "#2dd4bf",
-    bg: "rgba(45,212,191,.12)",
-    cardBd: "#2c2f3a",
-  },
-  failed: {
-    label: "Failed",
-    color: "#f43f5e",
-    bg: "rgba(244,63,94,.12)",
-    cardBd: "#3a2329",
-  },
-  running: {
-    label: "Syncing",
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,.12)",
-    cardBd: "#3a3320",
-  },
-  cancelled: {
-    label: "Cancelled",
-    color: "#9499a3",
-    bg: "rgba(148,153,163,.12)",
-    cardBd: "#2c2f3a",
-  },
-  idle: {
-    label: "Not synced",
-    color: "#7b808c",
-    bg: "rgba(123,128,140,.12)",
-    cardBd: "#2c2f3a",
-  },
-};
+import type { MappingStatus, SourceProvider, Tone } from "./types";
 
 export function fmtBytes(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return "—";
@@ -53,41 +19,6 @@ export function fmtBytes(n: number | null | undefined): string {
     " " +
     u[i]
   );
-}
-
-export function fmtDur(s: number): string {
-  if (!isFinite(s) || s < 0) s = 0;
-  s = Math.round(s);
-  const m = Math.floor(s / 60),
-    ss = s % 60;
-  return (m < 10 ? "0" : "") + m + ":" + (ss < 10 ? "0" : "") + ss;
-}
-
-export function pad2(n: number): string {
-  return (n < 10 ? "0" : "") + n;
-}
-
-export function zeroPadRunId(n: number): string {
-  return ("00000" + n).slice(-5);
-}
-
-/** "x files · y" meta line builder, or "never · manual" for idle. */
-export function metaLine(m: {
-  last_status: MappingStatus;
-  enabled: boolean;
-  last_at: string | null;
-  last_files: number | null;
-  last_bytes: number | null;
-}): string {
-  if (m.last_status === "idle") {
-    return "Last sync · never · " + (m.enabled ? "manual" : "disabled");
-  }
-  const when = m.last_at ? relTime(m.last_at) : "just now";
-  const stats =
-    m.last_files != null && m.last_bytes != null
-      ? " · " + m.last_files + " files · " + fmtBytes(m.last_bytes)
-      : "";
-  return "Last sync · " + when + stats;
 }
 
 /** Coarse relative-time for the meta line. */
@@ -132,22 +63,13 @@ export function extractFolderId(raw: string): string | null {
 }
 
 /** Build the rclone fs/connection-string label for display + commands. */
-export function srcLabel(
-  kind: "folder_id" | "shared_with_me",
-  remote: string,
-  sourceId: string | null,
-): string {
-  if (kind === "folder_id") {
-    return `${remote},root_folder_id=${sourceId ?? "…"}:`;
-  }
-  return `${remote},shared_with_me:`;
+export function srcLabel(remote: string, sourceId: string | null): string {
+  return `${remote},root_folder_id=${sourceId ?? "…"}:`;
 }
 
 /* ---------------------------------------------------------------------------
    Provider detection (gdrive vs pcloud) for the pasted-link flow.
    --------------------------------------------------------------------------- */
-
-import type { SourceProvider } from "./types";
 
 /** Detect the provider from a pasted URL. Bare IDs (no host) default to gdrive
  *  (the original Drive-by-id behavior). */
@@ -181,7 +103,111 @@ export function parsePcloudLink(
   return { code, host };
 }
 
-/** Short provider tag for cards. */
+/** Provider name as shown to the user. */
 export function providerLabel(provider: SourceProvider): string {
-  return provider === "pcloud" ? "pCloud" : "Drive";
+  return provider === "pcloud" ? "pCloud" : "Google Drive";
+}
+
+/* ---------------------------------------------------------------------------
+   Paper-UI helpers (pure; checked by scripts/check-format.mjs).
+   --------------------------------------------------------------------------- */
+
+/** Pasted link -> provider + id (+ pCloud host), or null if unusable. */
+export function parseLink(
+  raw: string,
+): { provider: SourceProvider; id: string; host: string | null } | null {
+  const provider = detectProvider(raw);
+  if (provider === "pcloud") {
+    const p = parsePcloudLink(raw);
+    return p && { provider, id: p.code, host: p.host };
+  }
+  const id = extractFolderId(raw);
+  return id ? { provider, id, host: null } : null;
+}
+
+const clean = (s: string) =>
+  s
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/[/\\:]/g, "-")
+    .trim();
+
+/** One safe path segment: control chars stripped, `/ \ :` -> `-`, and
+ *  "", "." and ".." fall back (the only guard on dest_path). */
+export function cleanFolderName(draft: string, fallback: string): string {
+  const ok = (s: string) => s !== "" && s !== "." && s !== "..";
+  const d = clean(draft);
+  if (ok(d)) return d;
+  const f = clean(fallback);
+  return ok(f) ? f : "Folder";
+}
+
+/** Home-directory prefix -> "~". */
+export function tildify(path: string): string {
+  return path.replace(/^\/(Users|home)\/[^/]+/, "~");
+}
+
+export function fmtInterval(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.round(minutes / 60);
+  return h === 1 ? "1 hr" : `${h} hr`;
+}
+
+export function fmtTimeLeft(sec: number): string {
+  if (!isFinite(sec) || sec <= 0) return "";
+  if (sec < 60) return "less than a minute left";
+  const m = Math.round(sec / 60);
+  if (m < 60) return `about ${m} ${m === 1 ? "minute" : "minutes"} left`;
+  const h = Math.round(m / 60);
+  return `about ${h} ${h === 1 ? "hour" : "hours"} left`;
+}
+
+/** Status precedence: running > failed > cancelled > paused > idle > ok. */
+export function folderStatus(
+  m: { last_status: MappingStatus; last_at: string | null; auto_sync: boolean },
+  running: boolean,
+  pct: number,
+): { tone: Tone; line: string } {
+  const when = m.last_at ? relTime(m.last_at) : "";
+  if (running) return { tone: "busy", line: `Copying · ${Math.round(pct)}%` };
+  if (m.last_status === "failed") return { tone: "problem", line: "Needs attention" };
+  if (m.last_status === "cancelled") return { tone: "waiting", line: "Stopped" };
+  if (!m.auto_sync)
+    return {
+      tone: "paused",
+      line: when ? `Paused · copied ${when}` : "Paused · not copied yet",
+    };
+  if (m.last_status === "idle") return { tone: "waiting", line: "Not copied yet" };
+  return { tone: "ok", line: `Up to date · ${when || "just now"}` };
+}
+
+/** Failure text -> card copy + which fix applies. */
+export function problemOf(
+  lastError: string | null,
+  skipShortcuts: boolean,
+): { title: string; body: string; kind: "retry" | "skipShortcuts" } {
+  if (/folder loop/i.test(lastError ?? ""))
+    return {
+      title: "This folder loops back on itself",
+      body: "A shortcut inside it points to one of its own parent folders, so the copy would never finish. Skipping shortcuts copies everything else normally.",
+      kind: skipShortcuts ? "retry" : "skipShortcuts",
+    };
+  return {
+    title: "Couldn't finish copying",
+    body: lastError || "Something went wrong while copying.",
+    kind: "retry",
+  };
+}
+
+export function headline(rows: { tone: Tone; name: string }[]): string {
+  const n = (t: Tone) => rows.filter((r) => r.tone === t);
+  const bad = n("problem").length;
+  if (bad) return bad === 1 ? "1 folder needs you." : `${bad} folders need you.`;
+  const busy = n("busy");
+  if (busy.length)
+    return busy.length === 1
+      ? `Copying ${busy[0].name}`
+      : `Copying ${busy.length} folders`;
+  const wait = n("waiting").length;
+  if (wait) return `${wait} ${wait === 1 ? "folder" : "folders"} waiting.`;
+  return "Everything's up to date.";
 }

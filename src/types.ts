@@ -275,185 +275,106 @@ export interface NewMapping {
    View-models the store hands to the views (keeps views ~pure markup).
    --------------------------------------------------------------------------- */
 
-export type View = "connect" | "dashboard" | "newMapping" | "run" | "settings";
+export type View = "home" | "preview" | "folder" | "copying" | "settings";
+export type Tone = "ok" | "busy" | "problem" | "paused" | "waiting";
 
-/** Status -> presentation, transcribed from prototype STATUS map. */
-export interface StatusMeta {
-  label: string;
-  color: string;
-  bg: string;
-  cardBd: string;
+export interface Problem {
+  title: string;
+  body: string;
+  fixLabel: string;
+  fix: () => void;
 }
 
-/** One row in a lazy tree (source or dest), already flattened with indentation
- *  and handlers — mirrors the prototype's renderVals rows. */
-export interface TreeRow {
-  key: string;
-  kind: "row" | "loading" | "empty";
-  /** left padding in px (depth-based). */
-  pad: number;
-  name: string;
-  hasChildren: boolean;
-  expanded: boolean;
-  selected: boolean;
-  onToggle: () => void;
-  onSelect: () => void;
+export interface FolderRow extends Mapping {
+  tone: Tone;
+  statusLine: string;
+  running: boolean;
+  barWidth: string;
+  action: { label: string; run: () => void } | null;
+  problem: Problem | null;
+  destDisplay: string;
+  fromLabel: string;
+  whatLabel: string;
+  open: () => void;
+  openRun: () => void;
+  openFolder: () => void;
+  openFolderError: string;
+  checkNow: () => void;
+  toggleAuto: () => void;
+  toggleProtectLocalEdits: () => void;
+  pendingStop: boolean;
+  askStop: () => void;
+  confirmStop: () => void;
+  cancelStop: () => void;
 }
 
-export interface StagedPair {
-  key: string;
+export interface PreviewModel {
+  phase: "signin" | "loading" | "ready" | "error";
+  link: string;
+  error: string;
+  providerLabel: string;
+  sourceName: string;
   name: string;
-  dest: string; // relative dest subpath (legacy/display)
-  /** Absolute destination folder captured at add time. */
-  destPath: string;
-  remove: () => void;
-}
-
-/** A run shaped for the Run view (formatted strings + flags). */
-export interface RunView {
-  runId: string; // zero-padded "00043"
-  name: string;
-  src: string;
-  dest: string;
-  status: MappingStatus;
-  statusMeta: StatusMeta;
-  isRunning: boolean;
-  isDone: boolean;
-  pct: number;
-  barWidth: string; // "42.31%"
-  barColor: string;
-  shineOpacity: string; // "1" | "0"
-  transferred: string; // fmtBytes
-  total: string;
-  files: number;
-  filesTotal: number;
-  speed: string; // "12.3 MiB/s" | "—"
-  eta: string; // "01:23" | "—"
-  log: RunLogLine[]; // last ~13
-  hasQueue: boolean;
-  queueRemaining: number;
+  renamed: boolean;
+  setName: (draft: string) => void;
+  resetName: () => void;
+  destPrefix: string;
+  exists: boolean;
+  changeLocation: () => void;
+  subfolders: FolderNode[];
+  choice: string;
+  choose: (path: string) => void;
+  keepUpToDate: boolean;
+  toggleKeepUpToDate: () => void;
+  keepEdits: boolean;
+  toggleKeepEdits: () => void;
+  starting: boolean;
+  start: () => void;
+  retry: () => void;
   cancel: () => void;
+}
+
+export interface RunView {
+  name: string;
+  status: MappingStatus;
+  isRunning: boolean;
+  starting: boolean; // no run id yet — Stop unavailable
+  pct: number;
+  barWidth: string;
+  timeLeft: string;
+  stats: string;
+  log: RunLogLine[];
+  problem: Problem | null;
+  stop: () => void;
   retry: () => void;
   back: () => void;
-  /** Reveal this run's destination folder in the OS file manager. */
   openFolder: () => void;
-  /** Why the last openFolder() attempt failed; "" when there's nothing to say. */
   openFolderError: string;
 }
-
-/** Mapping shaped for a dashboard card. */
-export interface MappingCard extends Mapping {
-  statusMeta: StatusMeta;
-  metaLine: string;
-  /** Short provider tag for the card, e.g. "pCloud" | "Drive". */
-  providerLabel: string;
-  srcLabel: string;
-  destDisplay: string; // "<libraryRoot>/<dest>"
-  syncLabel: string; // "Sync now" | "Retry"
-  /** Relative time the last run failed, e.g. "12m ago"; "" unless failed. */
-  failedAgo: string;
-  pendingDelete: boolean;
-  /** Auto-sync state for this card. */
-  autoLabel: string; // "Auto · every 15 min · next ~8m" | "Manual"
-  /** Live progress (when a run is in flight for this mapping). */
-  running: boolean;
-  pct: number; // 0–100
-  barWidth: string; // "42.3%"
-  progressLabel: string; // "42% · 3.2 / 19 GiB · 72/433 files · 12 MiB/s · ETA 01:23"
-  toggleAuto: () => void;
-  /** Flip this mapping's skip-shortcuts flag (Drive-only; no-op UI for pCloud). */
-  toggleSkipShortcuts: () => void;
-  /** Flip this mapping's protect-local-edits flag. */
-  toggleProtectLocalEdits: () => void;
-  syncNow: () => void;
-  cancelNow: () => void;
-  /** Open the Run view (live log) for this mapping's in-flight sync. */
-  openRun: () => void;
-  /** Reveal this mapping's destination folder in the OS file manager. */
-  openFolder: () => void;
-  /** Why the last openFolder() attempt failed; "" when there's nothing to say. */
-  openFolderError: string;
-  askDelete: () => void;
-  confirmDelete: () => void;
-  cancelDelete: () => void;
-}
-
-/* ---------------------------------------------------------------------------
-   The useTrawl() hook return — the full surface the views consume.
-   The store (src/store.tsx) implements this; views import the type only.
-   --------------------------------------------------------------------------- */
 
 export interface UseTrawl {
-  // shell / nav
   view: View;
-  goDashboard: () => void;
-  goNewMapping: () => void;
-  /** Navigate to the (optional) Google Drive connect screen. */
-  goConnect: () => void;
+  goHome(): void;
+  goSettings(): void;
   connection: ConnectionState;
-  connect: () => void;
-  /** In-app updater state + actions (sidebar affordance). */
+  connect(): void;
   update: UpdateState;
-  /** Manually re-check for a newer version. */
-  checkForUpdate: () => void;
-  /** Install the available update and relaunch. */
-  installUpdate: () => void;
+  checkForUpdate(): void;
+  installUpdate(): void;
   libraryRoot: string;
-  /** Open a native folder picker to choose where syncs land (the library root). */
-  changeLibraryRoot: () => void;
-  mappingCount: number;
-
-  // auto-sync (global)
+  changeLibraryRoot(): void;
   settings: Settings;
-  /** Effective cadence: 0 when auto-sync is off (master switch), else minutes. */
   autoIntervalMinutes: number;
-  /** Set the global cadence; 0 turns the master switch off. */
-  setAutoIntervalMinutes: (minutes: number) => void;
-
-  // dashboard
+  setAutoIntervalMinutes(m: number): void;
+  setMinimizeToTray(on: boolean): void;
   isEmpty: boolean;
-  cards: MappingCard[];
-  syncAll: () => void;
-
-  // new mapping — source mode
-  mode: SourceKind;
-  setMode: (m: SourceKind) => void;
-  folderIdInput: string;
-  setFolderIdInput: (v: string) => void;
-  listSource: () => void; // the "List" button
-  listing: boolean;
-  sourceFsLabel: string; // mono fs-label in the pane header
-  sourceEmptyMsg: string;
-
-  // new mapping — source tree
-  sourceRows: TreeRow[];
-  hasSourceRows: boolean;
-
-  // new mapping — dest tree
-  rootSelected: boolean;
-  selectRoot: () => void;
-  destRows: TreeRow[];
-  destEmpty: boolean;
-  showNewFolder: boolean;
-  toggleNewFolder: () => void;
-  newFolderInput: string;
-  setNewFolderInput: (v: string) => void;
-  createFolder: () => void;
-
-  // new mapping — composer
-  hasSource: boolean;
-  sourceName: string;
-  finalName: string;
-  setFinalName: (v: string) => void;
-  destPrefixLabel: string; // "<libraryRoot>/<destSel>/"
-  addPair: () => void;
-  exists: boolean;
-
-  // new mapping — staged
-  staged: StagedPair[];
-  saveStaged: () => void;
-  clearStaged: () => void;
-
-  // run
-  run: RunView | null;
+  headline: string;
+  subline: string;
+  folders: FolderRow[];
+  checkAll(): void;
+  pasteLink(text: string): void;
+  pasteError: string;
+  preview: PreviewModel | null; // non-null iff view === "preview"
+  folder: FolderRow | null; // the folders[] entry for folderId (view "folder")
+  run: RunView | null; // non-null whenever view === "copying"
 }

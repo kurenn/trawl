@@ -1,51 +1,48 @@
 /* ============================================================================
-   Trawl — App root.
-   Wraps everything in TrawlProvider and routes views via useTrawl().
-   View components are prop-less and call useTrawl() themselves.
+   Trawl — App root. One 640px column; the store's `view` picks the screen.
    ============================================================================ */
 
 import "./theme.css";
 import { TrawlProvider, useTrawl } from "./store";
-import Sidebar from "./components/Sidebar";
-import Connect from "./views/Connect";
-import Dashboard from "./views/Dashboard";
-import NewMapping from "./views/NewMapping";
-import Run from "./views/Run";
+import Home from "./views/Home";
+import Preview from "./views/Preview";
+import Folder from "./views/Folder";
+import Copying from "./views/Copying";
+import Settings from "./views/Settings";
 
 function AppInner() {
-  const { view, run } = useTrawl();
+  const { view, run, preview, folder, goHome, goSettings } = useTrawl();
 
-  // No hard connect-gate: pCloud public links need no connection, so the
-  // dashboard is always reachable. Google Drive connect is reachable on demand
-  // (sidebar "Connect" / the inline prompt when a Drive link is pasted).
   function renderMain() {
     switch (view) {
-      case "connect":
-        return <Connect />;
-      case "dashboard":
-        return <Dashboard />;
-      case "newMapping":
-        return <NewMapping />;
-      case "run":
-        return run ? <Run /> : <Dashboard />;
+      case "preview":
+        return preview ? <Preview /> : <Home />;
+      case "folder":
+        return folder ? <Folder /> : <Home />;
+      case "copying":
+        return run ? <Copying /> : <Home />;
+      case "settings":
+        return <Settings />;
       default:
-        return <Dashboard />;
+        return <Home />;
     }
   }
 
   return (
-    <div className="app-shell">
-      <Sidebar />
-      <main
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {renderMain()}
-      </main>
+    <div className="app">
+      <header className="hdr">
+        <button className="mark" onClick={goHome}>
+          Trawl
+        </button>
+        <button
+          className="lnk"
+          style={{ marginLeft: "auto" }}
+          onClick={view === "settings" ? goHome : goSettings}
+        >
+          {view === "settings" ? "Done" : "Settings"}
+        </button>
+      </header>
+      {renderMain()}
     </div>
   );
 }
