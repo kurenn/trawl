@@ -6,6 +6,7 @@ workflow pulls the matching `## [version]` section into each GitHub Release.
 
 ## [Unreleased]
 
+- **Settings, grouped** — Settings is split into Updates, Storage, Accounts and App. Storage now shows how much space your folders take and how much is free on the disk. App adds "Open Trawl when I log in".
 - **Browse a folder's files** — each folder's screen now lists what has been copied. Click a subfolder to go into it, use the path above the list to go back up, and click a file to open it in its default app.
 - **New "Paper" look** — the dark dashboard, sidebar and two-tree composer are replaced by one calm column: paste a Google Drive or pCloud folder link, check the preview, and start copying. Folders live in a plain list with one status line each; problems get their own card with a one-click fix; each folder has a detail screen, and a live Copying screen replaces the run log. Settings are collected on a single page.
 - **Skip shortcuts fix** — a folder that loops back on itself now offers "Skip shortcuts and try again" instead of a bare error.

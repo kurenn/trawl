@@ -10,11 +10,12 @@ use std::{
 };
 
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 use trawl_core::locks;
 
 use crate::models::{
-    ConnectionPhase, ConnectionState, DirEntry, FolderNode, ListSourceArgs, Mapping, NewMapping, OpResult,
+    ConnectionPhase, ConnectionState, DirEntry, FolderNode, StorageUsage, ListSourceArgs, Mapping, NewMapping, OpResult,
     ProgressFn, Settings, SourceKind, SourceProvider, RUN_UPDATE_EVENT, STATE_CHANGED_EVENT,
 };
 use crate::{pcloud, rclone, store};
@@ -384,6 +385,31 @@ pub fn list_mapping_dir(
         return Ok(Vec::new());
     }
     store::list_dir(&dest, &subpath)
+}
+
+/// Space used by every folder's destination, plus the library disk's size and
+/// free space. Walks every destination, so it can take a while on a share.
+// ponytail: recomputed each time Settings opens; cache it if that gets slow.
+#[tauri::command(async)]
+pub fn storage_usage(state: tauri::State<AppState>) -> Result<StorageUsage, String> {
+    let root = library_root_path(&state);
+    store::check_dest_available(&root)?;
+    let dests: Vec<PathBuf> = store::load_mappings(&state.mappings_file)
+        .iter()
+        .filter_map(|m| store::effective_dest(&root, &m.dest_path, &m.dest_subpath).ok())
+        .collect();
+    store::storage_usage(&root, &dests)
+}
+
+#[tauri::command]
+pub fn get_open_at_login(app: AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn set_open_at_login(app: AppHandle, on: bool) -> Result<(), String> {
+    let launcher = app.autolaunch();
+    if on { launcher.enable() } else { launcher.disable() }.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -120,6 +120,17 @@ pub struct FolderNode {
     pub has_children: bool,
 }
 
+/// Disk use for the Settings page. == TS `StorageUsage`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageUsage {
+    /// Bytes inside every folder's destination.
+    pub folders_bytes: u64,
+    /// Size and free space of the disk holding the library root.
+    pub disk_total: u64,
+    pub disk_free: u64,
+}
+
 /// One entry in a mapping's destination folder. == TS `DirEntry`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

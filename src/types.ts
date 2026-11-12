@@ -109,6 +109,15 @@ export interface FolderNode {
   hasChildren: boolean;
 }
 
+/** Disk use for Settings (== Rust `StorageUsage`). */
+export interface StorageUsage {
+  /** Bytes inside every folder's destination. */
+  foldersBytes: number;
+  /** Size and free space of the disk holding the library root. */
+  diskTotal: number;
+  diskFree: number;
+}
+
 /** One entry in a mapping's destination folder (== Rust `DirEntry`). */
 export interface DirEntry {
   /** Relative to the mapping's destination ("a/b.stl"). */
@@ -230,6 +239,12 @@ export interface Api {
   /** List files and folders at `subpath` inside a mapping's destination,
    *  folders first. Empty if nothing has been copied yet. */
   listMappingDir(id: string, subpath: string): Promise<DirEntry[]>;
+  /** Space used by all folders and the library disk's size/free space. Slow
+   *  on a big share (walks every folder). */
+  storageUsage(): Promise<StorageUsage>;
+  /** Start Trawl when the user logs in. */
+  getOpenAtLogin(): Promise<boolean>;
+  setOpenAtLogin(on: boolean): Promise<void>;
 
   // --- mappings persistence ---
   loadMappings(): Promise<Mapping[]>;
@@ -387,6 +402,9 @@ export interface UseTrawl {
   autoIntervalMinutes: number;
   setAutoIntervalMinutes(m: number): void;
   setMinimizeToTray(on: boolean): void;
+  storageUsage(): Promise<StorageUsage>;
+  getOpenAtLogin(): Promise<boolean>;
+  setOpenAtLogin(on: boolean): Promise<void>;
   isEmpty: boolean;
   headline: string;
   subline: string;
