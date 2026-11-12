@@ -36,7 +36,7 @@ button { cursor: pointer; }
 /* Layout */
 .app { min-height: 100%; display: flex; flex-direction: column; background: var(--bg); }
 .hdr { display: flex; align-items: center; padding: 28px 40px; }
-.mark { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+.mark { background: none; border: 0; padding: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
 .mark::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--text); }
 .page { width: 100%; max-width: 640px; margin: 0 auto; padding: 32px 24px 96px; display: flex; flex-direction: column; gap: 48px; }
 
@@ -61,6 +61,7 @@ button { cursor: pointer; }
   padding: 0; border: 0; background: none; color: var(--text); font-size: inherit;
   text-decoration: underline; text-decoration-color: var(--underline); text-underline-offset: 4px;
 }
+.lnk.quiet { color: var(--quiet); }
 .lnk:hover { text-decoration-color: var(--text); }
 .lnk.danger { color: var(--red); text-decoration-color: var(--red-underline); }
 .lnk.danger:hover { text-decoration-color: var(--red); }

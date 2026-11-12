@@ -261,8 +261,8 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       // Subscribe to run updates.
       // - For EVERY event: update the matching mapping's transient status on the
       //   card (so background/auto syncs are reflected even without user action).
-      // - Gated on activeMappingRef: only update the run-view snapshot and
-      //   advance the queue when the event belongs to the actively displayed run.
+      // - Gated on activeMappingRef: only update the run-view snapshot when the
+      //   event belongs to the actively displayed run.
       unsubRun = await api.onRunUpdate((progress: RunProgress) => {
         if (!mounted) return;
 
@@ -305,7 +305,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
                 // explains and which is length-capped anyway.
                 last_error:
                   progress.status === "failed"
-                    ? progress.error ?? "Sync failed"
+                    ? progress.error ?? "Couldn't finish copying"
                     : null,
               };
             }
@@ -469,7 +469,14 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     api.startSync(mappingId).catch((e: unknown) => {
       console.error(e);
       // Drop the optimistic placeholder if no real run took over, and refresh
-      // the true status from disk.
+      // the true status (incl. last_error) from disk.
+      if (activeMappingRef.current === mappingId) {
+        setActiveRun({
+          ...startingRun(mappingId, mappingsRef.current.find((x) => x.id === mappingId)),
+          status: "failed",
+          error: errMsg(e),
+        });
+      }
       setLiveProgress((prev) => {
         const lp = prev.get(mappingId);
         if (lp && lp.runId === 0) {
@@ -693,7 +700,6 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     if (pv && pvPhase === "signin" && connection.phase === "connected") {
       loadPreview(pv);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pvPhase, connection.phase, loadPreview]);
 
   // Does the destination folder already exist on disk? (drives the merge note)
@@ -708,13 +714,14 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
         if (seq === existsSeqRef.current) patchPv({ exists });
       })
       .catch(() => {});
-  }, [pvPhase, pvName, patchPv]);
+  }, [pvPhase, pvName, libraryRoot, patchPv]);
 
   const startPreview = useCallback(() => {
     const api = apiRef.current;
     const s = pv;
     if (!api || !s || s.phase !== "ready" || s.starting) return;
     patchPv({ starting: true });
+    const seq = listSeqRef.current; // goHome (Cancel) bumps it
     (async () => {
       try {
         const seg = cleanFolderName(s.name, s.sourceName);
@@ -728,7 +735,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
           src_label:
             s.provider === "pcloud"
               ? `pcloud:${s.id}`
-              : srcLabel("folder_id", connection.remote || "gdrive", s.id),
+              : srcLabel(connection.remote || "gdrive", s.id),
           dest_subpath: seg,
           dest_path: `${libraryRoot}/${seg}`,
           acknowledge_abuse: true,
@@ -746,11 +753,13 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
             x.dest_path === nm.dest_path,
         );
         if (!m) throw new Error("Couldn't add that folder.");
+        if (seq !== listSeqRef.current) return; // cancelled
         if (s.keepUpToDate) {
           const updated = await api.setMappingAutoSync(m.id, true);
           setMappings(updated);
           mappingsRef.current = updated;
         }
+        if (seq !== listSeqRef.current) return; // cancelled
         startRun(m.id);
         openRun(m.id);
         setPv(null);
@@ -832,7 +841,6 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
           tone,
           statusLine: line,
           running,
-          pct,
           barWidth: `${(ratio * 100).toFixed(1)}%`,
           action,
           problem,
@@ -868,7 +876,6 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
           cancelStop: () => setPendingStop(null),
         };
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mappings, libraryRoot, pendingStop, liveProgress, openFolderError, settings, tick,
      makeProblem, startRun, openRun, openFolder, toggleAuto, toggleProtectLocalEdits, goHome],
   );
@@ -878,8 +885,8 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     folders.map((f) => ({ tone: f.tone, name: f.source_name })),
   );
   const subline = settings.auto_sync_enabled
-    ? `Checks for new files every ${fmtInterval(settings.auto_sync_interval_minutes)}.`
-    : "Automatic checks are off.";
+    ? `Checks for new files every ${fmtInterval(settings.auto_sync_interval_minutes)}`
+    : "Automatic checks are off";
   const folder = folders.find((f) => f.id === folderId) ?? null;
 
   /* -------------------------------------------------------------------------
@@ -890,10 +897,11 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     if (view !== "copying" || !folderId) return null;
     const m = mappings.find((x) => x.id === folderId);
     if (!m) return null;
-    // Before the first event arrives, a placeholder keeps the view alive.
+    // The placeholder is only for a start that is genuinely pending (liveProgress
+    // has it); otherwise show what the mapping itself last recorded.
+    const live = activeRun?.mappingId === folderId ? activeRun : liveProgress.get(folderId);
     const ar =
-      (activeRun?.mappingId === folderId ? activeRun : liveProgress.get(folderId)) ??
-      startingRun(folderId, m);
+      live ?? { ...startingRun(folderId, m), status: m.last_status, error: m.last_error };
     const isRunning = ar.status === "running";
     const pct =
       ar.status === "succeeded"
@@ -904,7 +912,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     const noTotals = ar.bytesTotal <= 0 && ar.filesTotal <= 0;
     const stats = noTotals
       ? isRunning
-        ? "Starting…"
+        ? ar.runId === 0 && liveProgress.has(folderId) ? "Starting…" : "Copying…"
         : ""
       : [
           `${fmtBytes(ar.bytesDone)} of ${fmtBytes(ar.bytesTotal)}`,
@@ -915,11 +923,10 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
           .join(" · ");
 
     return {
-      mappingId: folderId,
       name: m.source_name,
       status: ar.status,
       isRunning,
-      starting: ar.runId === 0,
+      starting: ar.runId === 0 && liveProgress.has(folderId),
       pct: Math.round(pct),
       barWidth: pct.toFixed(2) + "%",
       timeLeft: isRunning ? fmtTimeLeft(ar.etaSec) : "",

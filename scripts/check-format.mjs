@@ -10,7 +10,8 @@ assert.equal(f.parseLink("hi"), null);
 assert.equal(f.parseLink(""), null);
 
 // cleanFolderName
-for (const d of ["..", ".", "", "   "]) assert.equal(f.cleanFolderName(d, "Src"), d === "" || d.trim() === "" || d[0] === "." ? "Src" : d);
+for (const d of ["..", ".", "", "   "]) assert.equal(f.cleanFolderName(d, "Src"), "Src");
+assert.equal(f.cleanFolderName("a\u007fb", "x"), "ab");
 assert.equal(f.cleanFolderName("a/b\\c:d", "x"), "a-b-c-d");
 assert.equal(f.cleanFolderName("a\u0000b\u001fc\u0007", "x"), "abc");
 assert.equal(f.cleanFolderName("\u0000", "x"), "x");

@@ -33,7 +33,10 @@ export default function Copying() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <p className="err">{problem.title}</p>
             <p className="quiet" style={{ fontSize: 14 }}>{problem.body}</p>
-            <div><button type="button" className="lnk" onClick={problem.fix}>{problem.fixLabel}</button></div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <button type="button" className="lnk" onClick={problem.fix}>{problem.fixLabel}</button>
+              <button type="button" className="lnk quiet" onClick={run.back}>Back to folders</button>
+            </div>
           </div>
         )}
 

@@ -21,18 +21,6 @@ export function fmtBytes(n: number | null | undefined): string {
   );
 }
 
-export function fmtDur(s: number): string {
-  if (!isFinite(s) || s < 0) s = 0;
-  s = Math.round(s);
-  const m = Math.floor(s / 60),
-    ss = s % 60;
-  return (m < 10 ? "0" : "") + m + ":" + (ss < 10 ? "0" : "") + ss;
-}
-
-export function pad2(n: number): string {
-  return (n < 10 ? "0" : "") + n;
-}
-
 /** Coarse relative-time for the meta line. */
 export function relTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -75,15 +63,8 @@ export function extractFolderId(raw: string): string | null {
 }
 
 /** Build the rclone fs/connection-string label for display + commands. */
-export function srcLabel(
-  kind: "folder_id" | "shared_with_me",
-  remote: string,
-  sourceId: string | null,
-): string {
-  if (kind === "folder_id") {
-    return `${remote},root_folder_id=${sourceId ?? "…"}:`;
-  }
-  return `${remote},shared_with_me:`;
+export function srcLabel(remote: string, sourceId: string | null): string {
+  return `${remote},root_folder_id=${sourceId ?? "…"}:`;
 }
 
 /* ---------------------------------------------------------------------------
@@ -146,7 +127,7 @@ export function parseLink(
 
 const clean = (s: string) =>
   s
-    .replace(/[\u0000-\u001f]/g, "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
     .replace(/[/\\:]/g, "-")
     .trim();
 

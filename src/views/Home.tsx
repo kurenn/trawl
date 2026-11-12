@@ -105,7 +105,7 @@ export default function Home() {
         <article key={f.id} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <span className="lbl" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span className="dot" aria-hidden="true" />
-            {f.source_name}
+            <button type="button" className="lnk" onClick={f.open}>{f.source_name}</button>
           </span>
           <h2 style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em" }}>{f.problem!.title}</h2>
           <p className="quiet">{f.problem!.body}</p>

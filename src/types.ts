@@ -289,7 +289,6 @@ export interface FolderRow extends Mapping {
   tone: Tone;
   statusLine: string;
   running: boolean;
-  pct: number;
   barWidth: string;
   action: { label: string; run: () => void } | null;
   problem: Problem | null;
@@ -336,7 +335,6 @@ export interface PreviewModel {
 }
 
 export interface RunView {
-  mappingId: string;
   name: string;
   status: MappingStatus;
   isRunning: boolean;
