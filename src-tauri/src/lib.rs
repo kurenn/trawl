@@ -67,6 +67,7 @@ pub fn run() {
             commands::create_local_folder,
             commands::local_path_exists,
             commands::open_mapping_folder,
+            commands::list_mapping_dir,
             commands::load_mappings,
             commands::save_mappings,
             commands::delete_mapping,

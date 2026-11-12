@@ -11,6 +11,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import type {
   Api,
   ConnectionState,
+  DirEntry,
   FolderNode,
   ListSourceArgs,
   Mapping,
@@ -81,8 +82,12 @@ const tauriApiImpl: Api = {
     return invoke<boolean>("local_path_exists", { subpath });
   },
 
-  openMappingFolder(id: string): Promise<void> {
-    return invoke<void>("open_mapping_folder", { id });
+  openMappingFolder(id: string, subpath?: string): Promise<void> {
+    return invoke<void>("open_mapping_folder", { id, subpath: subpath ?? null });
+  },
+
+  listMappingDir(id: string, subpath: string): Promise<DirEntry[]> {
+    return invoke<DirEntry[]>("list_mapping_dir", { id, subpath });
   },
 
   // ---------- mappings persistence ----------

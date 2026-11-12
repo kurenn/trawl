@@ -120,6 +120,20 @@ pub struct FolderNode {
     pub has_children: bool,
 }
 
+/// One entry in a mapping's destination folder. == TS `DirEntry`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntry {
+    /// Path relative to the mapping's destination ("a/b.stl").
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    /// Bytes; 0 for folders.
+    pub size: u64,
+    /// Last modified, Unix seconds. None if the filesystem doesn't report it.
+    pub modified: Option<u64>,
+}
+
 /// == TS `ListSourceArgs` (camelCase: sourceId).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::locks;
 use crate::models::{
-    FolderNode, Mapping, MappingStatus, NewMapping, OpResult, RunProgress, Settings, SourceKind,
+    DirEntry, FolderNode, Mapping, MappingStatus, NewMapping, OpResult, RunProgress, Settings, SourceKind,
     SourceProvider,
 };
 
@@ -331,6 +331,48 @@ pub fn list_local_folders(
     nodes.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     Ok(nodes)
+}
+
+/// Lists files and folders in `base/subpath` (a mapping's destination), folders
+/// first, then case-insensitively by name. Dotfiles are skipped. `subpath` is
+/// validated by `resolve_dest`, so it can't escape `base`. A missing directory
+/// lists as empty (nothing copied yet).
+pub fn list_dir(base: &Path, subpath: &str) -> Result<Vec<DirEntry>, String> {
+    let dir = resolve_dest(base, subpath)?;
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let entries = fs::read_dir(&dir).map_err(|e| format!("Cannot read folder: {e}"))?;
+    let prefix = subpath.trim_matches('/');
+    let mut out: Vec<DirEntry> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') {
+                return None;
+            }
+            // Follows symlinks, so a link to a folder browses like a folder.
+            let meta = fs::metadata(entry.path()).ok()?;
+            let modified = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs());
+            Some(DirEntry {
+                path: if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") },
+                is_dir: meta.is_dir(),
+                size: if meta.is_dir() { 0 } else { meta.len() },
+                modified,
+                name,
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Ok(out)
 }
 
 // ─── Folder Creation ─────────────────────────────────────────────────────────
@@ -758,6 +800,29 @@ pub fn set_mapping_protect_local_edits(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn list_dir_lists_folders_first_and_stays_inside_base() {
+        let base = std::env::temp_dir().join("trawl_list_dir_test");
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("Zeta/inner")).unwrap();
+        fs::write(base.join("alpha.stl"), b"12345").unwrap();
+        fs::write(base.join(".hidden"), b"x").unwrap();
+        fs::write(base.join("Zeta/inner/part.stl"), b"x").unwrap();
+
+        let root = list_dir(&base, "").unwrap();
+        let names: Vec<_> = root.iter().map(|e| (e.name.as_str(), e.is_dir)).collect();
+        assert_eq!(names, vec![("Zeta", true), ("alpha.stl", false)]);
+        assert_eq!(root[1].size, 5);
+        assert_eq!(root[0].path, "Zeta");
+
+        let inner = list_dir(&base, "Zeta/inner").unwrap();
+        assert_eq!(inner[0].path, "Zeta/inner/part.stl");
+        assert!(list_dir(&base, "missing").unwrap().is_empty());
+        assert!(list_dir(&base, "..").is_err());
+        assert!(list_dir(&base, "/etc").is_err());
+        let _ = fs::remove_dir_all(&base);
+    }
 
     #[test]
     fn mounted_volume_root_extracts_the_volume() {
