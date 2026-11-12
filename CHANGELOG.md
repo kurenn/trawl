@@ -4,6 +4,13 @@ All notable changes to Trawl are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the release
 workflow pulls the matching `## [version]` section into each GitHub Release.
 
+## [Unreleased]
+
+- **New "Paper" look** — the dark dashboard, sidebar and two-tree composer are replaced by one calm column: paste a Google Drive or pCloud folder link, check the preview, and start copying. Folders live in a plain list with one status line each; problems get their own card with a one-click fix; each folder has a detail screen, and a live Copying screen replaces the run log. Settings are collected on a single page.
+- **Skip shortcuts fix** — a folder that loops back on itself now offers "Skip shortcuts and try again" instead of a bare error.
+- **"Stop syncing" keeps your files** — it only removes the folder from Trawl; files already copied stay on your computer.
+- **Existing manual folders read "Paused"** — folders that had automatic checks off now show as Paused after upgrading; "Resume" turns checks back on.
+
 ## [0.3.0]
 
 - **Survives a dropped destination** — if the destination volume disconnects mid-sync, Trawl now stops the run and reports a mount problem. Before, rclone saw an empty folder and started copying the whole library again. A disk that was ejected uncleanly and left an empty `/Volumes/<name>` folder behind is also treated as missing now, so a sync can't quietly fill up your internal drive.

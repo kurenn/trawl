@@ -42,7 +42,7 @@ function AppInner() {
           {view === "settings" ? "Done" : "Settings"}
         </button>
       </header>
-      <main className="page">{renderMain()}</main>
+      {renderMain()}
     </div>
   );
 }

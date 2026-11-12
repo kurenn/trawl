@@ -23,6 +23,7 @@ import {
   headline as headlineOf,
   parseLink,
   problemOf,
+  providerLabel,
   srcLabel,
   tildify,
 } from "./format";
@@ -139,10 +140,10 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     minimize_to_tray: true,
   });
 
-  // ---- 1-second ticker so relative times ("2m ago") stay fresh ----
+  // ---- 30s ticker so relative times ("2m ago") stay fresh without re-rendering every view each second ----
   const [tick, setNowTick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setNowTick((n) => n + 1), 1000);
+    const t = setInterval(() => setNowTick((n) => n + 1), 30_000);
     return () => clearInterval(t);
   }, []);
 
@@ -365,10 +366,12 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
     setPv(null);
     setPendingStop(null);
     setFolderId(null);
+    setPasteError("");
     setView("home");
   }, []);
 
   const goSettings = useCallback(() => {
+    setPasteError("");
     setView("settings");
   }, []);
 
@@ -771,11 +774,11 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       phase: pv.phase,
       link: pv.link,
       error: pv.error,
-      providerLabel: pv.provider === "pcloud" ? "pCloud" : "Google Drive",
+      providerLabel: providerLabel(pv.provider),
       sourceName: pv.sourceName,
       name: pv.name,
       renamed: pv.name !== dflt,
-      setName: (draft) => patchPv({ name: cleanFolderName(draft, pv.sourceName) }),
+      setName: (draft) => patchPv({ name: cleanFolderName(draft, dflt) }),
       resetName: () => patchPv({ name: dflt }),
       destPrefix: tildify(libraryRoot) + "/",
       exists: pv.exists,
@@ -837,7 +840,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
             m.dest_path ||
               (m.dest_subpath ? `${libraryRoot}/${m.dest_subpath}` : libraryRoot),
           ),
-          fromLabel: m.source_provider === "pcloud" ? "pCloud" : "Google Drive",
+          fromLabel: providerLabel(m.source_provider),
           whatLabel: m.source_subpath || "Everything",
           open: () => {
             setPendingStop(null);
@@ -916,6 +919,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       name: m.source_name,
       status: ar.status,
       isRunning,
+      starting: ar.runId === 0,
       pct: Math.round(pct),
       barWidth: pct.toFixed(2) + "%",
       timeLeft: isRunning ? fmtTimeLeft(ar.etaSec) : "",

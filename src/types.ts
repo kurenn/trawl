@@ -340,6 +340,7 @@ export interface RunView {
   name: string;
   status: MappingStatus;
   isRunning: boolean;
+  starting: boolean; // placeholder run, id not known yet
   pct: number;
   barWidth: string;
   timeLeft: string;

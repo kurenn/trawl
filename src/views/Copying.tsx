@@ -5,9 +5,8 @@ export default function Copying() {
   if (!run) return null;
 
   const { status, isRunning, problem } = run;
-  const label = status === "succeeded" ? "Copied" : status === "cancelled" ? "Stopped" : "Copying";
-  // RunView exposes no placeholder flag; "Starting…" stats while running is the closest signal.
-  const starting = isRunning && run.stats === "Starting…";
+  const label =
+    status === "succeeded" ? "Copied" : status === "cancelled" ? "Stopped" : status === "failed" ? "Needs attention" : "Copying";
 
   return (
     <main className="page">
@@ -40,7 +39,7 @@ export default function Copying() {
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {isRunning && (
-            <button type="button" className="btn" disabled={starting} onClick={run.stop}>Stop</button>
+            <button type="button" className="btn" disabled={run.starting} onClick={run.stop}>Stop</button>
           )}
           {status === "succeeded" && <button type="button" className="btn p" onClick={run.back}>Back to folders</button>}
           {status === "cancelled" && <button type="button" className="btn p" onClick={run.retry}>Resume</button>}

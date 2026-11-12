@@ -3,7 +3,7 @@
    Transcribed from the prototype (Trawl App.dc.html) so numbers/labels match.
    ============================================================================ */
 
-import type { MappingStatus, SourceProvider } from "./types";
+import type { MappingStatus, SourceProvider, Tone } from "./types";
 
 export function fmtBytes(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return "—";
@@ -122,16 +122,14 @@ export function parsePcloudLink(
   return { code, host };
 }
 
-/** Short provider tag for cards. */
+/** Provider name as shown to the user. */
 export function providerLabel(provider: SourceProvider): string {
-  return provider === "pcloud" ? "pCloud" : "Drive";
+  return provider === "pcloud" ? "pCloud" : "Google Drive";
 }
 
 /* ---------------------------------------------------------------------------
    Paper-UI helpers (pure; checked by scripts/check-format.mjs).
    --------------------------------------------------------------------------- */
-
-export type Tone = "ok" | "busy" | "problem" | "paused" | "waiting";
 
 /** Pasted link -> provider + id (+ pCloud host), or null if unusable. */
 export function parseLink(

@@ -164,7 +164,7 @@ src/                      React + TS frontend
   api.ts                  selects the real (Tauri) or sim (browser) adapter
   tauri/tauriApi.ts       real adapter — invoke() + run events
   sim/                    browser simulation adapter + fake catalog
-  views/                  Connect · Dashboard · NewMapping · Run
+  views/                  Home · Preview · Folder · Copying · Settings
   theme.css               design tokens (CSS variables)
 
 src-tauri/src/            Rust backend
