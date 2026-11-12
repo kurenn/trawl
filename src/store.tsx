@@ -470,23 +470,34 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       console.error(e);
       // Drop the optimistic placeholder if no real run took over, and refresh
       // the true status (incl. last_error) from disk.
-      if (activeMappingRef.current === mappingId) {
-        setActiveRun({
-          ...startingRun(mappingId, mappingsRef.current.find((x) => x.id === mappingId)),
-          status: "failed",
-          error: errMsg(e),
-        });
-      }
+      const errMessage = errMsg(e);
       setLiveProgress((prev) => {
         const lp = prev.get(mappingId);
         if (lp && lp.runId === 0) {
+          if (activeMappingRef.current === mappingId) {
+            setActiveRun({ ...lp, status: "failed", error: errMessage });
+          }
           const n = new Map(prev);
           n.delete(mappingId);
           return n;
         }
         return prev;
       });
-      apiRef.current?.loadMappings().then((maps) => setMappings(maps)).catch(() => {});
+      // Overlay the failure so Home/Folder show the problem article; the next
+      // loadMappings or run event replaces the row, so it never sticks. A
+      // "running" row means another process (CLI) holds the lock: leave it.
+      apiRef.current
+        ?.loadMappings()
+        .then((maps) =>
+          setMappings(
+            maps.map((m) =>
+              m.id === mappingId && m.last_status !== "running"
+                ? { ...m, last_status: "failed" as MappingStatus, last_error: errMessage }
+                : m,
+            ),
+          ),
+        )
+        .catch(() => {});
     });
   }, []);
 
@@ -926,7 +937,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       name: m.source_name,
       status: ar.status,
       isRunning,
-      starting: ar.runId === 0 && liveProgress.has(folderId),
+      starting: ar.runId === 0, // no run id yet: Stop can't target it
       pct: Math.round(pct),
       barWidth: pct.toFixed(2) + "%",
       timeLeft: isRunning ? fmtTimeLeft(ar.etaSec) : "",

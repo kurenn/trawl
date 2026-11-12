@@ -63,7 +63,7 @@ export default function Copying() {
         </div>
       </details>
 
-      {settings.minimize_to_tray && (
+      {isRunning && settings.minimize_to_tray && (
         <p className="quiet" style={{ fontSize: 14, lineHeight: 1.6 }}>
           You can close this window. Trawl keeps copying from the menu bar and lets you know when it's done.
         </p>
