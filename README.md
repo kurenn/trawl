@@ -19,7 +19,7 @@ A small **desktop app** that syncs **Google Drive & pCloud folders by link** int
 
 <br/>
 
-<img src="assets/dashboard.jpg" width="860" alt="Trawl syncing folders with live progress" />
+<img src="assets/home.webp" width="860" alt="Trawl's folder list: two folders up to date, two copying" />
 
 </div>
 
@@ -31,11 +31,11 @@ Someone shares a Google Drive or pCloud folder by link — models, assets, a pho
 
 ## ✨ Features
 
-- 🔗 **Sync by link** — paste a Google Drive folder URL / ID (or pick from **Shared with me**), or a **pCloud** public link. Trawl extracts the folder and roots rclone at it.
-- 📁 **One local library** — every mapping lands in a folder under your library root (default `~/Trawl`, auto-created); the right-hand pane browses it.
+- 🔗 **Sync by link** — paste a Google Drive folder URL / ID, or a **pCloud** public link. Trawl previews what's inside and roots rclone at it.
+- 📁 **One local library** — every mapping lands in a folder under your library root (default `~/Trawl`, auto-created), and each folder's page lets you browse its files.
 - 📊 **Live progress** — the Rust backend streams parsed `rclone` stats to the UI: percent, bytes, files, speed, and ETA, per run.
 - 🔄 **Auto-sync scheduler** — opt any mapping into background syncs on an interval; `rclone copy` is incremental, so idle runs are cheap.
-- 🧭 **Cancel · Retry · Delete** — full control over every mapping, with a persisted last-run status and a clear error banner when something fails.
+- 🧭 **Stop · Try again · Stop syncing** — full control over every folder, with its last result saved and a plain-language problem card (and one-click fix) when something fails.
 - 🪢 **Folder-loop guard + Skip shortcuts** — detects a source that recurses forever (a Google Drive shortcut pointing back up its own tree) and stops the run early. Flip **Skip shortcuts** on a Drive mapping to ignore shortcuts entirely and copy right through the loop.
 - 🛡️ **Copy, never delete** — transfers are additive; the destination is never pruned. Destinations are containment-checked so a mapping can never escape the library root.
 - 📦 **Self-contained** — rclone ships *inside* the app (a Tauri sidecar), so there's nothing else to install. One-line setup via Homebrew or `curl | sh`.
@@ -44,13 +44,17 @@ Someone shares a Google Drive or pCloud folder by link — models, assets, a pho
 
 ## 🎬 See it in action
 
-**Add a sync mapping** — paste a Drive/pCloud link, pick a local destination, save.
+**Paste a folder link** — Trawl shows what's inside; choose everything or one subfolder, and rename where it lands.
 
-<div align="center"><img src="assets/trawl-new-mapping.gif" width="820" alt="Adding a sync mapping in Trawl" /></div>
+<div align="center"><img src="assets/preview.webp" width="820" alt="Preview of a pasted folder: where it will be copied and what to copy" /></div>
 
-**Pull with live progress** — hit sync and watch additive copies stream in, per-mapping.
+**Let it copy** — watch the progress, or close the window and Trawl keeps going in the menu bar.
 
-<div align="center"><img src="assets/trawl-sync.gif" width="820" alt="Syncing folders with live progress in Trawl" /></div>
+<div align="center"><img src="assets/copying.webp" width="820" alt="A folder copying at 50 percent with size, file count and speed" /></div>
+
+**Open what arrived** — every folder has its own page to browse its files and open them.
+
+<div align="center"><img src="assets/folder.webp" width="820" alt="A folder's page listing its subfolders and files" /></div>
 
 ## 🚀 Quick start
 
