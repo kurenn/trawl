@@ -4,6 +4,12 @@ All notable changes to Trawl are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the release
 workflow pulls the matching `## [version]` section into each GitHub Release.
 
+## [0.5.0]
+
+- **New logo** — a black-and-white jellyfish replaces the teal grid, matching the app's look. It's the app icon on every platform, a simplified version keeps it clear at small sizes, and it's the mark next to "Trawl" in the app's header.
+- **Updates show up on Home** — Trawl now checks for a new version every day while it runs, not just when it starts. When one is out, Home says "Trawl X is available · Install"; Install downloads it and restarts the app. Settings has a "Check again" link to check by hand.
+- **Cleaner title bar on macOS** — the window no longer shows "Trawl" in its title bar, and the bar takes the app's white background.
+
 ## [0.4.1]
 
 - **Signed and notarized on macOS** — Trawl is now signed with a Developer ID and notarized by Apple, so it opens like any other app. No more "Trawl is damaged" warning and no need to clear the quarantine flag.
