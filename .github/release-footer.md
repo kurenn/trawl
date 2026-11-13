@@ -1,6 +1,6 @@
 ### Install
 
-- **macOS** — open the `.dmg`, drag Trawl to **Applications**. Not notarized yet, so clear the quarantine flag once: `xattr -dr com.apple.quarantine /Applications/Trawl.app` (Apple Silicon → `aarch64.dmg`, Intel → `x64.dmg`).
+- **macOS** — open the `.dmg`, drag Trawl to **Applications**. Signed and notarized by Apple (Apple Silicon → `aarch64.dmg`, Intel → `x64.dmg`).
 - **Windows** — run the `.msi` or `-setup.exe`. On SmartScreen: **More info → Run anyway**.
 - **Linux** — `.AppImage` (chmod +x and run), `.deb`, or `.rpm`.
 
