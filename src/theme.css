@@ -37,7 +37,7 @@ button { cursor: pointer; }
 .app { min-height: 100%; display: flex; flex-direction: column; background: var(--bg); }
 .hdr { display: flex; align-items: center; padding: 28px 40px; }
 .mark { background: none; border: 0; padding: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
-.mark::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--text); }
+.mark::before { content: ""; width: 16px; height: 16px; background: currentColor; -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='2 2.5 12 12'><path d='M3.5 8V7.25a4.5 4.5 0 0 1 9 0V8zM4 7h1v3H4zM3 10h2v1H3zM6 7h1v5H6zM8 7h1v5H8zM10 7h1v4h-1zM10 11h2v1h-2zM12 7h1v3h-1zM12 10h2v1h-2zM2 12h1v1H2zM5 13h1v1H5zM9 13h1v1H9zM12 13h1v1h-1z'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='2 2.5 12 12'><path d='M3.5 8V7.25a4.5 4.5 0 0 1 9 0V8zM4 7h1v3H4zM3 10h2v1H3zM6 7h1v5H6zM8 7h1v5H8zM10 7h1v4h-1zM10 11h2v1h-2zM12 7h1v3h-1zM12 10h2v1h-2zM2 12h1v1H2zM5 13h1v1H5zM9 13h1v1H9zM12 13h1v1h-1z'/></svg>") center / contain no-repeat; }
 .page { width: 100%; max-width: 640px; margin: 0 auto; padding: 32px 24px 96px; display: flex; flex-direction: column; gap: 48px; }
 
 /* Type */

@@ -183,6 +183,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let unsubRun: (() => void) | null = null;
     let unsubState: (() => void) | null = null;
+    let updateTimer: ReturnType<typeof setInterval> | undefined;
     let mounted = true;
 
     (async () => {
@@ -205,22 +206,26 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
       mappingsRef.current = maps;
       setSettingsState(sett);
 
-      // Fire-and-forget: check for a newer version on launch. Drive-independent
-      // (works for pCloud-only users too); failures are silent (offline, etc.).
-      setUpdate((u) => ({ ...u, phase: "checking", error: null }));
-      api
-        .checkForUpdate()
-        .then((info) => {
-          if (!mounted) return;
-          setUpdate(
-            info
-              ? { phase: "available", version: info.version, error: null }
+      // Check for a newer version on launch, then daily — the app lives in the
+      // tray for days. Silent: failures (offline, etc.) just reset to idle, and
+      // an install in progress is never interrupted.
+      const quietCheck = () => {
+        api
+          .checkForUpdate()
+          .then((info) => {
+            if (!mounted) return;
+            setUpdate((u) =>
+              u.phase === "downloading" ? u
+              : info ? { phase: "available", version: info.version, error: null }
               : { phase: "current", version: null, error: null },
-          );
-        })
-        .catch(() => {
-          if (mounted) setUpdate({ phase: "idle", version: null, error: null });
-        });
+            );
+          })
+          .catch(() => {
+            if (mounted) setUpdate((u) => (u.phase === "downloading" ? u : { phase: "idle", version: null, error: null }));
+          });
+      };
+      quietCheck();
+      updateTimer = setInterval(quietCheck, 24 * 60 * 60 * 1000);
 
       // Reload mappings + settings whenever the backend changes shared state
       // (tray toggle, auto-sync scheduler, etc.)
@@ -329,6 +334,7 @@ export function TrawlProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      clearInterval(updateTimer);
       unsubRun?.();
       unsubState?.();
     };

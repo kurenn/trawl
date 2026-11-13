@@ -8,12 +8,12 @@
 
 A small **desktop app** that syncs **Google Drive & pCloud folders by link** into a **local folder** using [`rclone`](https://rclone.org) under the hood. Paste a folder URL, pick a local destination, and pull — **additive copy only, it never deletes at the destination.**
 
-[![Release](https://img.shields.io/github/v/release/kurenn/trawl?color=2dd4bf&label=release)](https://github.com/kurenn/trawl/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/kurenn/trawl/release.yml?color=2dd4bf&label=build)](https://github.com/kurenn/trawl/actions/workflows/release.yml)
-[![License: MIT](https://img.shields.io/github/license/kurenn/trawl?color=2dd4bf)](LICENSE)
-![Platforms](https://img.shields.io/badge/platforms-macOS%20·%20Windows%20·%20Linux-2dd4bf)
-![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%20v2%20·%20Rust%20·%20React-2dd4bf)
-[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-2dd4bf?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/kurito)
+[![Release](https://img.shields.io/github/v/release/kurenn/trawl?color=18181b&label=release)](https://github.com/kurenn/trawl/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/kurenn/trawl/release.yml?color=18181b&label=build)](https://github.com/kurenn/trawl/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/github/license/kurenn/trawl?color=18181b)](LICENSE)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20·%20Windows%20·%20Linux-18181b)
+![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%20v2%20·%20Rust%20·%20React-18181b)
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-18181b?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/kurito)
 
 [**⬇️ Download**](https://github.com/kurenn/trawl/releases/latest) &nbsp;·&nbsp; [**🧭 Quick start**](#-quick-start) &nbsp;·&nbsp; [**☕ Support**](https://buymeacoffee.com/kurito)
 
