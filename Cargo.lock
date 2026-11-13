@@ -4387,7 +4387,7 @@ dependencies = [
 
 [[package]]
 name = "trawl"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
@@ -4406,7 +4406,7 @@ dependencies = [
 
 [[package]]
 name = "trawl-cli"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
@@ -4418,7 +4418,7 @@ dependencies = [
 
 [[package]]
 name = "trawl-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
