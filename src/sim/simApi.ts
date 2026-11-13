@@ -347,9 +347,10 @@ class SimApi implements Api {
   // ---------- updates ----------
 
   async checkForUpdate(): Promise<UpdateInfo | null> {
-    // Browser sim has no real update channel — always "current".
+    // Browser sim has no real update channel: "current", unless the page URL
+    // has ?update to preview the "update available" notice.
     await delay(400);
-    return null;
+    return new URLSearchParams(location.search).has("update") ? { version: "0.5.0", notes: null } : null;
   }
 
   async installUpdate(): Promise<void> {
