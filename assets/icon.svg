@@ -1,24 +1,29 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#37dccb"/>
-      <stop offset="1" stop-color="#22c2ae"/>
-    </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.14"/>
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-
   <!-- app tile -->
-  <rect x="48" y="48" width="928" height="928" rx="220" fill="url(#tile)"/>
-  <rect x="48" y="48" width="928" height="928" rx="220" fill="url(#sheen)"/>
+  <rect x="48" y="48" width="928" height="928" rx="220" fill="#18181b"/>
 
-  <!-- 2x2 mappings grid glyph (Trawl brand mark) -->
-  <g transform="translate(272,272) scale(32)">
-    <rect x="1"   y="1"   width="5.5" height="5.5" rx="1.4" fill="#0c1512"/>
-    <rect x="8.5" y="1"   width="5.5" height="5.5" rx="1.4" fill="#0c1512" opacity="0.55"/>
-    <rect x="1"   y="8.5" width="5.5" height="5.5" rx="1.4" fill="#0c1512" opacity="0.55"/>
-    <rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1.4" fill="#0c1512"/>
+  <!-- jellyfish: a bell, five tentacles, and the files it trails -->
+  <g transform="translate(512 512) scale(1.25) translate(-506 -508)" fill="#fff">
+    <path d="M391 408V393A121 110 0 0 1 633 393V408Z"/>
+    <g fill="none" stroke="#fff" stroke-width="27" stroke-linejoin="round">
+      <path d="M404.5 400V476Q404.5 505 375.5 505H361"/>
+      <path d="M458.5 400V520Q458.5 549 429.5 549H419"/>
+      <path d="M512.5 400V562"/>
+      <path d="M566.5 400V538C566.5 562 583.5 566 583.5 590V600"/>
+      <path d="M619.5 400V476Q619.5 505 648.5 505H660"/>
+    </g>
+    <rect x="283" y="511" width="27" height="27" rx="2"/>
+    <rect x="605" y="536" width="22" height="22" rx="2"/>
+    <rect x="363" y="546" width="27" height="27" rx="2"/>
+    <rect x="702" y="560" width="27" height="27" rx="2"/>
+    <rect x="645" y="572" width="16" height="16" rx="2"/>
+    <rect x="393" y="585" width="24" height="24" rx="2"/>
+    <rect x="332" y="599" width="27" height="27" rx="2"/>
+    <rect x="472" y="603" width="27" height="27" rx="2"/>
+    <rect x="605" y="617" width="24" height="24" rx="2"/>
+    <rect x="525" y="627" width="27" height="27" rx="2"/>
+    <rect x="418" y="637" width="27" height="27" rx="2"/>
+    <rect x="580" y="669" width="27" height="27" rx="2"/>
+    <rect x="499" y="706" width="27" height="27" rx="2"/>
   </g>
 </svg>
