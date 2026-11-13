@@ -162,7 +162,12 @@ export default function Settings() {
       <p className="lbl" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <span>Trawl {version}</span>
         {update.phase === "checking" && <span>Checking…</span>}
-        {update.phase === "current" && <span>Up to date</span>}
+        {update.phase === "current" && (
+          <>
+            <span>Up to date ·</span>
+            <button type="button" className="lnk" onClick={t.checkForUpdate}>Check again</button>
+          </>
+        )}
         {update.phase === "available" && (
           <>
             <span>Update to v{update.version} ·</span>

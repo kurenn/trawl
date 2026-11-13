@@ -56,7 +56,7 @@ function PlainRow({ f }: { f: FolderRow }) {
 }
 
 export default function Home() {
-  const { isEmpty, headline, subline, folders, checkAll, pasteError, settings } = useTrawl();
+  const { isEmpty, headline, subline, folders, checkAll, pasteError, settings, update, installUpdate } = useTrawl();
   const err = pasteError && <p className="err" role="alert">{pasteError}</p>;
 
   if (isEmpty) {
@@ -94,6 +94,13 @@ export default function Home() {
           {subline} ·{" "}
           <button type="button" className="lnk quiet" onClick={checkAll}>Check now</button>
         </p>
+        {update.phase === "available" && (
+          <p className="quiet" style={{ fontSize: 16 }}>
+            Trawl {update.version} is available ·{" "}
+            <button type="button" className="lnk quiet" onClick={installUpdate}>Install</button>
+          </p>
+        )}
+        {update.phase === "downloading" && <p className="quiet" style={{ fontSize: 16 }}>Installing Trawl {update.version}…</p>}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
