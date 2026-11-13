@@ -45,8 +45,8 @@ case "$OS" in
     rm -rf "/Applications/$(basename "$APP")"
     cp -R "$APP" /Applications/
     hdiutil detach "$MP" >/dev/null 2>&1 || true
-    # Unsigned build → clear the download quarantine so it opens without the
-    # "damaged" warning. (Sign+notarize later to drop this entirely.)
+    # Builds are signed + notarized; clearing quarantine just skips the
+    # first-launch prompt (and keeps older unsigned releases working).
     xattr -dr com.apple.quarantine "/Applications/$(basename "$APP")" 2>/dev/null || true
     say "Installed → /Applications/$(basename "$APP"). Launch it from Applications."
     ;;
