@@ -9,7 +9,8 @@
 <meta property="og:description" content="Paste a Google Drive or pCloud folder link. Trawl copies it to your computer and keeps it up to date. It never deletes anything." />
 <meta property="og:type" content="website" />
 <meta property="og:image" content="https://kurenn.github.io/trawl/og.jpg" />
-<link rel="icon" href="logo.png" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -49,7 +50,7 @@
   /* Header */
   header .wrap { display: flex; align-items: center; gap: 28px; padding-top: 28px; padding-bottom: 28px; }
   .mark { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; text-decoration: none; }
-  .mark::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--text); }
+  .mark::before { content: ""; width: 16px; height: 16px; background: currentColor; -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='2 2.5 12 12'><path d='M3.5 8V7.25a4.5 4.5 0 0 1 9 0V8zM4 7h1v3H4zM3 10h2v1H3zM6 7h1v5H6zM8 7h1v5H8zM10 7h1v4h-1zM10 11h2v1h-2zM12 7h1v3h-1zM12 10h2v1h-2zM2 12h1v1H2zM5 13h1v1H5zM9 13h1v1H9zM12 13h1v1h-1z'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='2 2.5 12 12'><path d='M3.5 8V7.25a4.5 4.5 0 0 1 9 0V8zM4 7h1v3H4zM3 10h2v1H3zM6 7h1v5H6zM8 7h1v5H8zM10 7h1v4h-1zM10 11h2v1h-2zM12 7h1v3h-1zM12 10h2v1h-2zM2 12h1v1H2zM5 13h1v1H5zM9 13h1v1H9zM12 13h1v1h-1z'/></svg>") center / contain no-repeat; }
   header nav { margin-left: auto; display: flex; gap: 24px; font-size: 14px; }
   header nav a { color: var(--quiet); text-decoration: none; }
   header nav a:hover { color: var(--text); }
