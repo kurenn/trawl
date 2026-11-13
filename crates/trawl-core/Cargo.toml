@@ -1,6 +1,6 @@
 [package]
 name = "trawl-core"
-version = "0.4.0"
+version = "0.4.1"
 description = "Sync engine (rclone + pCloud) shared by the Trawl desktop app and CLI"
 authors = ["Spoolr"]
 edition = "2021"

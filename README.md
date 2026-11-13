@@ -72,14 +72,9 @@ brew install --cask kurenn/tap/trawl
 curl -fsSL https://raw.githubusercontent.com/kurenn/trawl/main/scripts/install.sh | bash
 ```
 
-Both of the above download the app and clear the macOS quarantine for you.
-
 **Or download manually** — grab the latest build for your OS from the [**Releases**](https://github.com/kurenn/trawl/releases/latest) page:
 
-- **macOS** — open the `.dmg` and drag Trawl to **Applications**. It isn't notarized yet, so macOS may say *"Trawl is damaged."* It isn't — clear the download quarantine flag once:
-  ```bash
-  xattr -dr com.apple.quarantine /Applications/Trawl.app
-  ```
+- **macOS** — open the `.dmg` and drag Trawl to **Applications**. Builds are signed and notarized by Apple, so it opens like any other app.
   (Apple Silicon → `aarch64.dmg`, Intel → `x64.dmg`.)
 - **Windows** — run the `.msi` or `-setup.exe`. On SmartScreen: **More info → Run anyway**.
 - **Linux** — `.AppImage` (chmod +x and run), `.deb`, or `.rpm`.

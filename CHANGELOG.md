@@ -4,6 +4,11 @@ All notable changes to Trawl are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the release
 workflow pulls the matching `## [version]` section into each GitHub Release.
 
+## [0.4.1]
+
+- **Signed and notarized on macOS** — Trawl is now signed with a Developer ID and notarized by Apple, so it opens like any other app. No more "Trawl is damaged" warning and no need to clear the quarantine flag.
+- Includes everything from 0.4.0 below, which was never published on its own.
+
 ## [0.4.0]
 
 - **Settings, grouped** — Settings is split into Updates, Storage, Accounts and App. Storage now shows how much space your folders take and how much is free on the disk. App adds "Open Trawl when I log in".

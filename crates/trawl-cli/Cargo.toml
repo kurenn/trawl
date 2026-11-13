@@ -1,6 +1,6 @@
 [package]
 name = "trawl-cli"
-version = "0.4.0"
+version = "0.4.1"
 description = "Headless CLI for the Trawl sync engine"
 authors = ["Spoolr"]
 edition = "2021"
