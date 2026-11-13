@@ -4,9 +4,9 @@
 
 # Trawl
 
-### Pull shared cloud folders into a local library.
+### Keep a local copy of any shared cloud folder.
 
-A small **desktop app** that syncs **Google Drive & pCloud folders by link** into a **local folder** using [`rclone`](https://rclone.org) under the hood. Paste a folder URL, pick a local destination, and pull — **additive copy only, it never deletes at the destination.**
+A small desktop app that copies Google Drive and pCloud folders to your computer from a share link, using [`rclone`](https://rclone.org). Paste the link, pick where it goes, and Trawl keeps it up to date. It only adds files and never deletes anything on your side.
 
 [![Release](https://img.shields.io/github/v/release/kurenn/trawl?color=18181b&label=release)](https://github.com/kurenn/trawl/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/kurenn/trawl/release.yml?color=18181b&label=build)](https://github.com/kurenn/trawl/actions/workflows/release.yml)
@@ -15,7 +15,7 @@ A small **desktop app** that syncs **Google Drive & pCloud folders by link** int
 ![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%20v2%20·%20Rust%20·%20React-18181b)
 [![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-18181b?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/kurito)
 
-[**⬇️ Download**](https://github.com/kurenn/trawl/releases/latest) &nbsp;·&nbsp; [**🧭 Quick start**](#-quick-start) &nbsp;·&nbsp; [**☕ Support**](https://buymeacoffee.com/kurito)
+[**Download**](https://github.com/kurenn/trawl/releases/latest) &nbsp;·&nbsp; [**Quick start**](#quick-start) &nbsp;·&nbsp; [**Website**](https://kurenn.github.io/trawl/)
 
 <br/>
 
@@ -27,63 +27,64 @@ A small **desktop app** that syncs **Google Drive & pCloud folders by link** int
 
 ## Why Trawl?
 
-Someone shares a Google Drive or pCloud folder by link — models, assets, a photo dump — and you just want a **local copy that stays current**. `rsync` can't talk to Drive; the web UI won't bulk-download; and a full two-way sync risks clobbering your files. Trawl points at a shared folder, pairs it with a local destination, and pulls on demand or on a schedule. Transfers are **additive** — new and changed files are copied down, and **nothing at the destination is ever deleted.**
+Someone shares a Google Drive or pCloud folder with you (models, assets, a dump of photos) and you want a copy on your machine that keeps up when they add things. `rsync` can't talk to Drive. The web UI won't download a big folder in one go. A two-way sync client can overwrite or delete your local files.
 
-## ✨ Features
+Trawl does one thing. You give it a shared folder and a local destination, and it downloads new and changed files when you ask or on a schedule. Files at the destination are never deleted.
 
-- 🔗 **Sync by link** — paste a Google Drive folder URL / ID, or a **pCloud** public link. Trawl previews what's inside and roots rclone at it.
-- 📁 **One local library** — every mapping lands in a folder under your library root (default `~/Trawl`, auto-created), and each folder's page lets you browse its files.
-- 📊 **Live progress** — the Rust backend streams parsed `rclone` stats to the UI: percent, bytes, files, speed, and ETA, per run.
-- 🔄 **Auto-sync scheduler** — opt any mapping into background syncs on an interval; `rclone copy` is incremental, so idle runs are cheap.
-- 🧭 **Stop · Try again · Stop syncing** — full control over every folder, with its last result saved and a plain-language problem card (and one-click fix) when something fails.
-- 🪢 **Folder-loop guard + Skip shortcuts** — detects a source that recurses forever (a Google Drive shortcut pointing back up its own tree) and stops the run early. Flip **Skip shortcuts** on a Drive mapping to ignore shortcuts entirely and copy right through the loop.
-- 🛡️ **Copy, never delete** — transfers are additive; the destination is never pruned. Destinations are containment-checked so a mapping can never escape the library root.
-- 📦 **Self-contained** — rclone ships *inside* the app (a Tauri sidecar), so there's nothing else to install. One-line setup via Homebrew or `curl | sh`.
+## Features
 
-> 🔒 **Local & private.** rclone's OAuth token stays on your machine (`~/.config/rclone/rclone.conf`); Trawl has no accounts, cloud, or telemetry.
+- **Add a folder by link.** Paste a Google Drive folder URL or ID, or a pCloud public link. Trawl shows what's inside before it copies anything, and you can take the whole folder or one subfolder.
+- **One library folder.** New folders go under your library (`~/Trawl` by default, created for you). Each one gets a page in the app where you can browse and open its files.
+- **Live progress.** The Rust backend reads rclone's stats and shows the percentage, size, file count, speed and time left for each copy.
+- **Automatic checks.** Trawl checks every folder for changes every 15 minutes, or every hour, six hours or day, or only when you ask. `rclone copy` only transfers what changed, so a check with nothing new is cheap. You can turn checks off for a single folder.
+- **Keep my edits.** On by default. A file you edited locally is never replaced by an older copy from the source. If the source has a newer version, your copy is moved to a `.trawl-replaced` folder next to the destination instead of being lost.
+- **Plain error messages.** A failed copy shows what happened in one sentence and a button to fix it or retry. If a Google Drive shortcut loops back into its own parent, Trawl stops early and offers to skip shortcuts.
+- **Survives flaky destinations.** If a network share stops responding or a disk is unplugged mid-copy, Trawl stops and reports it. It won't start re-downloading the whole library into an empty mount point.
+- **Nothing else to install.** rclone is bundled with the app as a Tauri sidecar. Install with Homebrew, a one-line script, or a regular download.
 
-## 🎬 See it in action
+> **Local and private.** rclone saves your Google sign-in token on your machine (`~/.config/rclone/rclone.conf`). Trawl has no account, no server and no telemetry.
 
-**Paste a folder link** — Trawl shows what's inside; choose everything or one subfolder, and rename where it lands.
+## See it in action
+
+**Paste a folder link.** Trawl shows what's inside. Take everything or one subfolder, and rename the local folder if you want.
 
 <div align="center"><img src="assets/preview.webp" width="820" alt="Preview of a pasted folder: where it will be copied and what to copy" /></div>
 
-**Let it copy** — watch the progress, or close the window and Trawl keeps going in the menu bar.
+**Let it copy.** Watch the progress, or close the window and Trawl finishes from the menu bar.
 
 <div align="center"><img src="assets/copying.webp" width="820" alt="A folder copying at 50 percent with size, file count and speed" /></div>
 
-**Open what arrived** — every folder has its own page to browse its files and open them.
+**Open what arrived.** Each folder has its own page where you can browse and open its files.
 
 <div align="center"><img src="assets/folder.webp" width="820" alt="A folder's page listing its subfolders and files" /></div>
 
-## 🚀 Quick start
+## Quick start
 
-Trawl **bundles rclone** inside the app, so there's nothing else to install.
+rclone comes with the app, so you don't need to install it separately.
 
-**macOS — Homebrew (recommended):**
+**macOS, with Homebrew (recommended):**
 
 ```bash
 brew install --cask kurenn/tap/trawl
 ```
 
-**macOS / Linux — one-line installer:**
+**macOS or Linux, with the install script:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kurenn/trawl/main/scripts/install.sh | bash
 ```
 
-**Or download manually** — grab the latest build for your OS from the [**Releases**](https://github.com/kurenn/trawl/releases/latest) page:
+**Or download it yourself** from the [Releases](https://github.com/kurenn/trawl/releases/latest) page:
 
-- **macOS** — open the `.dmg` and drag Trawl to **Applications**. Builds are signed and notarized by Apple, so it opens like any other app.
-  (Apple Silicon → `aarch64.dmg`, Intel → `x64.dmg`.)
-- **Windows** — run the `.msi` or `-setup.exe`. On SmartScreen: **More info → Run anyway**.
-- **Linux** — `.AppImage` (chmod +x and run), `.deb`, or `.rpm`.
+- **macOS:** open the `.dmg` and drag Trawl to Applications. Builds are signed and notarized by Apple, so it opens like any other app. Use `aarch64.dmg` for Apple Silicon and `x64.dmg` for Intel.
+- **Windows:** run the `.msi` or `-setup.exe`. If SmartScreen stops it, click More info, then Run anyway.
+- **Linux:** use the `.AppImage` (`chmod +x` it and run it), the `.deb`, or the `.rpm`.
 
-On first launch, if you're syncing Google Drive, Trawl shows a **Connect Google Drive** screen — *Connect* runs rclone's OAuth flow in your browser and saves the token once. (pCloud public links need no connection.)
+The first time you paste a Google Drive link, Trawl asks you to sign in with Google. That runs rclone's OAuth flow in your browser and saves the token once. pCloud public links don't need a sign-in.
 
-## 🛠️ Build from source
+## Build from source
 
-Requires **Node 20+** and the **Rust** toolchain ([Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)).
+You need Node 20+ and the Rust toolchain (see the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)).
 
 ```bash
 git clone https://github.com/kurenn/trawl.git
@@ -92,36 +93,44 @@ npm install
 
 npm run dev            # web UI on a simulated backend (http://localhost:1420)
 
-# The desktop app bundles rclone as a sidecar — fetch it for your platform once
-# (the build validates its presence). No system rclone needed.
+# The desktop app bundles rclone as a sidecar. Fetch it for your platform once
+# (the build fails without it). You don't need rclone installed on the system.
 ./scripts/fetch-rclone.sh
 npm run tauri dev      # full desktop app
 npm run tauri build    # → src-tauri/target/release/bundle/ (.dmg, .msi, .AppImage…)
 ```
 
-`npm run dev` runs the whole UI against a built-in **simulation adapter** (fake Drive/pCloud catalog + animated runs), so the interface is fully clickable in a plain browser with no rclone and no real cloud connection. Run the backend tests from the repo root with `cargo test --workspace --exclude trawl` (the lib crates — connection-string builder, folder-loop detection, CLI — no built frontend needed) plus `cargo test -p trawl --lib` (the Tauri app's own lib tests).
+`npm run dev` runs the whole UI against a built-in simulation (a fake Drive/pCloud catalog with animated copies), so you can click through everything in a normal browser without rclone or a cloud account.
 
-## 🖥️ Headless / Omarchy
+Tests, all from the repo root:
 
-No desktop, no tray icon — just `rclone` and a CLI, for servers and tiling-WM setups (Linux only for the systemd pieces below).
+```bash
+npm run check                           # frontend logic (link parsing, folder-name cleaning, status text)
+cargo test --workspace --exclude trawl  # trawl-core and trawl-cli; no built frontend needed
+cargo test -p trawl --lib               # the Tauri app's own tests
+```
+
+## Headless / Omarchy
+
+For servers and tiling window managers there's a CLI with no window or tray icon. It only needs `rclone`. The systemd parts below are Linux only.
 
 ```bash
 cargo install --path crates/trawl-cli
 ```
 
-`trawl-cli` shares the desktop app's data (`~/.local/share/com.trawl.app` on Linux) and its run locks — the app and CLI never run the same mapping twice, and `mappings.json` writes are serialized across processes. Add mappings and connect Google Drive from the app first; pCloud links need no connection.
+`trawl-cli` uses the desktop app's data (`~/.local/share/com.trawl.app` on Linux) and the same run locks. The app and the CLI never copy the same folder at the same time, and writes to `mappings.json` are serialized across processes. Add folders and sign in to Google Drive from the app first. pCloud links need no sign-in.
 
 ```
-trawl-cli status [--json]   # JSON snapshot of every mapping (see schema below); always JSON either way
-trawl-cli sync <id>         # run one mapping now, blocking; writes live progress to the progress file (read via `status`)
-trawl-cli start <id>        # kick off one mapping in the background
-trawl-cli cancel <id>       # stop a run started via systemd/CLI (not one the desktop app started)
-trawl-cli sync-due          # start every due mapping as a systemd unit (needs `install-units`); honors the master auto-sync switch, the auto-sync interval, and each mapping's own Auto toggle
-trawl-cli install-units     # write + enable the systemd user units (below)
+trawl-cli status [--json]   # JSON snapshot of every mapping (schema below); prints JSON with or without the flag
+trawl-cli sync <id>         # run one mapping now and wait; live progress goes to the progress file (read it with `status`)
+trawl-cli start <id>        # start one mapping in the background
+trawl-cli cancel <id>       # stop a run started by systemd or the CLI (not one the desktop app started)
+trawl-cli sync-due          # start every due mapping as a systemd unit (needs `install-units`); respects the app's check setting (including "Only when I ask") and each mapping's own toggle
+trawl-cli install-units     # write and enable the systemd user units (below)
 trawl-cli uninstall-units   # remove them
 ```
 
-Exit codes: `0` ok/cancelled, `1` failure, `2` usage.
+Exit codes: `0` ok or cancelled, `1` failure, `2` usage error.
 
 `status` prints:
 
@@ -132,7 +141,7 @@ Exit codes: `0` ok/cancelled, `1` failure, `2` usage.
     {
       "id": "...", "name": "...", "provider": "gdrive", // or "pcloud"
       "src": "...",          // the rclone source label
-      "dest": "...",         // display-only
+      "dest": "...",         // display only
       "auto_sync": true, "enabled": true,
       "last_status": "...",  // one of the mapping statuses
       "last_at": "2024-01-01T00:00:00Z", // RFC3339, or null
@@ -144,64 +153,77 @@ Exit codes: `0` ok/cancelled, `1` failure, `2` usage.
 }
 ```
 
-`status` never touches destination paths.
+`status` never reads destination paths.
 
-**systemd (Linux):** `trawl-cli install-units` writes `trawl-sync@.service`, `trawl-auto.service`, and `trawl-auto.timer` (runs every 5 min, starting 2 min after boot) into `~/.config/systemd/user/`, points them at the installed `trawl-cli` binary, records the current `PATH` so `rclone` resolves the same way, and enables the timer. The timer's `sync-due` starts at most 3 concurrent syncs. `trawl-cli uninstall-units` removes them.
+**systemd (Linux):** `trawl-cli install-units` writes `trawl-sync@.service`, `trawl-auto.service` and `trawl-auto.timer` to `~/.config/systemd/user/`. The units point at the installed `trawl-cli` binary and record your current `PATH` so `rclone` resolves the same way. The command then enables the timer, which fires every 5 minutes starting 2 minutes after boot and starts at most 3 copies at once. `trawl-cli uninstall-units` removes them.
 
-> Tip: the desktop app's Auto pause also pauses the systemd timer (it's the same `auto_sync_enabled` setting). Running both the app and the timer at once is safe regardless — the run lock prevents a mapping from syncing twice at the same time.
+> Setting "Check for new files" to "Only when I ask" in the app also stops the systemd timer from starting copies, because both read the same `auto_sync_enabled` setting. Running the app and the timer together is safe: the run lock stops a folder from copying twice at once.
 
-`rclone` resolution: next to the `trawl-cli` binary first, then `PATH`. Google Drive mappings need a configured `gdrive` remote (the app's **Connect** flow); pCloud links need nothing.
+The CLI looks for `rclone` next to the `trawl-cli` binary first, then on `PATH`. Google Drive folders need the `gdrive` remote that the app's sign-in creates. pCloud links need nothing.
 
-## 🧱 Architecture
+## Architecture
 
-The **native side (Rust)** owns rclone: it detects/creates the remote, lists source folders, shells out to `rclone copy` with `--use-json-log --stats`, and streams parsed progress to the UI as live events. The **web side (React)** owns the UI and reads a single typed contract; a runtime adapter selects the real Tauri backend or the browser simulation with no call-site changes.
+The Rust side owns rclone. It creates the Drive remote, lists source folders, runs `rclone copy` with `--use-json-log --stats`, and sends parsed progress to the UI as events. The React side owns the UI and talks to one typed API. At runtime an adapter picks either the real Tauri backend or the browser simulation, and the views don't know which one they're using.
 
 ```
-src/                      React + TS frontend
-  types.ts                shared contract (domain, Api, useTrawl hook)
-  store.tsx               state brain (TrawlProvider + useTrawl)
-  api.ts                  selects the real (Tauri) or sim (browser) adapter
-  tauri/tauriApi.ts       real adapter — invoke() + run events
-  sim/                    browser simulation adapter + fake catalog
-  views/                  Home · Preview · Folder · Copying · Settings
-  theme.css               design tokens (CSS variables)
+src/                        React + TS frontend
+  types.ts                  shared contract (domain types, Api, useTrawl hook)
+  store.tsx                 app state (TrawlProvider + useTrawl)
+  format.ts                 link parsing, folder-name cleaning, status text
+  api.ts                    picks the real (Tauri) or sim (browser) adapter
+  tauri/tauriApi.ts         real adapter: invoke() + run events
+  sim/                      browser simulation adapter + fake catalog
+  views/                    Home · Preview · Folder · Contents · Copying · Settings
+  theme.css                 design tokens (CSS variables)
 
-src-tauri/src/            Rust backend
-  rclone.rs               detect/connect/list/copy/cancel + error mapping
-  pcloud.rs               pCloud public-link listing + download
-  store.rs                mappings.json + path-safety containment
-  scheduler.rs            in-process auto-sync ticker
-  commands.rs             #[tauri::command] glue, AppState, run lifecycle
-  models.rs               serde mirror of types.ts
+src-tauri/src/              desktop app (Tauri)
+  commands.rs               #[tauri::command] glue, AppState, run lifecycle
+  scheduler.rs              in-process auto-check ticker
+  tray.rs                   menu bar / tray icon
+
+crates/trawl-core/src/      logic shared by the app and the CLI
+  rclone.rs                 connect/list/copy/cancel + error mapping
+  pcloud.rs                 pCloud public-link listing + download
+  store.rs                  mappings.json + destination path checks
+  locks.rs                  cross-process run locks
+  schedule.rs               when a mapping is due
+  models.rs                 serde mirror of types.ts
+
+crates/trawl-cli/src/       headless CLI + systemd units
 ```
 
-**Stack:** Tauri v2 · Rust (`tokio`, `serde`) · rclone · React 19 + TypeScript + Vite.
+**Stack:** Tauri v2, Rust (`tokio`, `serde`), rclone, React 19, TypeScript and Vite.
 
-### 🛡️ Security note
+### Security note
 
-The key control is **destination containment** (`store.rs::resolve_dest`): every user-supplied destination subpath must resolve inside the library root. It rejects `..`, absolute paths, and control chars, and canonicalizes the deepest existing ancestor to defeat symlink escapes. Drive folder IDs are sanitized to the Drive charset, concurrent runs of the same mapping are rejected, and run IDs are assigned by the backend.
+Destinations are checked in two places. The frontend builds each new folder's destination from the library root plus a cleaned folder name (`format.ts::cleanFolderName`), which strips path separators, control characters and `.`/`..`. The backend stores that as an absolute path and only checks that it is absolute (`store.rs::effective_dest`), so the frontend cleaner is the guard for new folders and is covered by `npm run check`. Folders created before per-folder destinations existed use a relative subpath instead. `store.rs::resolve_dest` checks that path: it rejects `..`, absolute paths and control characters, and canonicalizes the deepest existing ancestor so a symlink can't lead outside the library root.
 
-## 🔁 How releases ship
+The backend also restricts Drive folder IDs to the Drive character set, rejects a second run of a folder that is already copying, and assigns run IDs itself.
 
-Bump the version, tag, and push — CI builds desktop bundles for every platform and attaches them to a draft GitHub Release.
+## How releases ship
+
+Bump the version, add a changelog entry, tag and push. CI builds every platform and attaches the bundles to a draft GitHub Release.
 
 ```bash
-# bump version in tauri.conf.json, package.json, and src-tauri/Cargo.toml, then:
-git tag v0.2.0 && git push origin v0.2.0
+# 1. bump the version in package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml,
+#    crates/trawl-core/Cargo.toml and crates/trawl-cli/Cargo.toml
+# 2. add a "## [x.y.z]" section to CHANGELOG.md (it becomes the release notes)
+# 3. tag and push:
+git tag v0.4.2 && git push origin v0.4.2
 ```
 
-## 🗺️ Out of scope (v1)
+## Out of scope
 
-A settings screen, run-history pages, and the "Remote path" source mode. Trawl only ever *pulls* — there is no push, no two-way sync, and no delete-at-destination.
+Run history and a "remote path" source mode. Trawl only downloads. It doesn't upload, do two-way sync or delete anything at the destination.
 
-## 🤝 Contributing
+## Contributing
 
-Issues and PRs are welcome. Building locally is just `npm install` + `npm run tauri dev` (the UI also runs standalone via `npm run dev`).
+Issues and PRs are welcome. To run it locally, `npm install` then `npm run tauri dev`. The UI also runs on its own with `npm run dev`.
 
-## ☕ Support
+## Support
 
-Trawl is free and open source — no accounts, cloud, or telemetry. If it earns a spot in your workflow, you can [**buy me a coffee**](https://buymeacoffee.com/kurito). Thank you!
+Trawl is free and open source, with no account, server or telemetry. If it's useful to you, you can [buy me a coffee](https://buymeacoffee.com/kurito). Thanks!
 
-## 📄 License
+## License
 
 [MIT](LICENSE) © Spoolr.

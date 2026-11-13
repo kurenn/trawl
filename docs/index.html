@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Trawl — keep a copy of any shared folder</title>
-<meta name="description" content="A small desktop app that copies shared Google Drive and pCloud folders to your computer and keeps them up to date. It only adds files — it never deletes anything." />
-<meta property="og:title" content="Trawl — keep a copy of any shared folder" />
-<meta property="og:description" content="Paste a Google Drive or pCloud folder link. Trawl copies it to your computer and keeps it up to date. It never deletes anything." />
+<title>Trawl: keep a copy of any shared folder</title>
+<meta name="description" content="A free desktop app that copies shared Google Drive and pCloud folders to your computer and keeps them up to date. It never deletes your files." />
+<meta property="og:title" content="Trawl: keep a copy of any shared folder" />
+<meta property="og:description" content="Paste a Google Drive or pCloud folder link and Trawl keeps a copy of it on your computer, up to date. It never deletes anything on your side." />
 <meta property="og:type" content="website" />
 <meta property="og:image" content="https://kurenn.github.io/trawl/og.jpg" />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
@@ -158,12 +158,12 @@
       <div class="col">
         <img class="logo" src="logo.png" width="88" height="88" alt="" />
         <h1>Keep a copy of any shared folder.</h1>
-        <p class="lede">Paste a Google Drive or pCloud folder link. Trawl copies it to your computer and keeps it up to date. It only ever adds files — it never deletes anything.</p>
+        <p class="lede">Paste a Google Drive or pCloud folder link and Trawl copies the folder to your computer. After that it keeps checking for new and changed files, and it never deletes anything on your side.</p>
         <div class="cta">
           <a class="btn p" href="https://github.com/kurenn/trawl/releases/latest">Download for macOS</a>
           <div class="cmd"><code id="brew">brew install --cask kurenn/tap/trawl</code><button class="lnk quiet" data-copy="brew">Copy</button></div>
         </div>
-        <p class="meta">macOS, Windows and Linux · Free and open source · No accounts, no tracking</p>
+        <p class="meta">macOS, Windows and Linux · Free and open source · No account or tracking</p>
       </div>
       <div class="shot"><img src="home.webp" width="1600" height="1152" alt="Trawl's folder list: two folders up to date, two copying with a progress bar" /></div>
     </div>
@@ -172,18 +172,18 @@
   <section id="features">
     <div class="wrap">
       <div class="sec-head col">
-        <h2>A copy that looks after itself.</h2>
-        <p>Point Trawl at a shared folder once. From then on it checks for new files and brings them home, without touching anything already there.</p>
+        <h2>Add a folder once and Trawl keeps it current</h2>
+        <p>Trawl checks the shared folder on a schedule and downloads anything new or changed. Files you already have are never deleted.</p>
       </div>
       <div class="rows">
-        <div><h3>Paste a link</h3><p>A Google Drive folder link or a pCloud public link is all it needs. Look inside and pick what to copy before anything moves.</p></div>
-        <div><h3>See it copy</h3><p>How far along it is, how much is left and how long it will take — for every folder.</p></div>
-        <div><h3>Stays up to date</h3><p>Trawl checks for new files on a schedule you choose. Copies are incremental, so a check with nothing new is quick.</p></div>
-        <div><h3>Never deletes</h3><p>Copies only add files. Nothing at your end is ever removed, and your own edits are kept safe instead of being overwritten.</p></div>
-        <div><h3>Browse what you have</h3><p>Look through any folder's files from inside Trawl, open a file, or jump to the folder in your file manager.</p></div>
-        <div><h3>Problems come with a fix</h3><p>A drive that isn't connected or a folder that loops back on itself shows what happened and a one-click way to carry on.</p></div>
-        <div><h3>Nothing else to install</h3><p>The copying engine, <code>rclone</code>, ships inside the app. Install with Homebrew or a one-line script.</p></div>
-        <div><h3>Yours, privately</h3><p>No accounts and no tracking. Your Google sign-in stays on your computer.</p></div>
+        <div><h3>Paste a link</h3><p>A Google Drive folder link or a pCloud public link is enough. You see what's inside and choose what to copy before anything downloads.</p></div>
+        <div><h3>Watch it copy</h3><p>Each folder shows how far along it is, how much is left and roughly how long it will take.</p></div>
+        <div><h3>Stays up to date</h3><p>Trawl checks every 15 minutes unless you pick an hour, six hours, a day, or only when you ask. Only changes get copied, so a check with nothing new is quick.</p></div>
+        <div><h3>Never deletes</h3><p>Files removed from the shared folder stay on your computer. With Keep my edits on (the default), a file you changed is never lost either. If the shared copy is newer, yours goes to a backup folder before it's replaced.</p></div>
+        <div><h3>Browse what you have</h3><p>Open any folder in Trawl to look through its files, open one, or show the folder in your file manager.</p></div>
+        <div><h3>Says what went wrong</h3><p>If a network drive stops answering or a folder loops back on itself, Trawl explains it in plain words and gives you a button to fix it or try again.</p></div>
+        <div><h3>Nothing else to install</h3><p>Trawl comes with its own copy of <code>rclone</code>, the tool that does the copying. Install it with Homebrew, a one-line script, or a regular download.</p></div>
+        <div><h3>Stays on your computer</h3><p>There's no account and no analytics. Your Google sign-in is saved on your computer and nowhere else.</p></div>
       </div>
     </div>
   </section>
@@ -191,20 +191,20 @@
   <section id="how">
     <div class="wrap">
       <div class="sec-head col">
-        <h2>From link to library in three steps.</h2>
-        <p>Trawl only ever pulls: no uploading, no two-way sync, and nothing deleted at your end.</p>
+        <h2>How it works</h2>
+        <p>Trawl only downloads. It never uploads to the shared folder or deletes anything on your computer.</p>
       </div>
       <div class="steps">
         <div>
-          <div class="step-head"><span class="n">01</span><div><h3>Paste a folder link</h3><p>Trawl shows what's inside. Choose everything or one subfolder, and rename where it lands if you like. Google Drive asks you to sign in once; pCloud links need nothing.</p></div></div>
+          <div class="step-head"><span class="n">01</span><div><h3>Paste a folder link</h3><p>Trawl shows what's inside. Copy all of it or a single subfolder, and rename the local folder if you want. Google Drive asks you to sign in the first time. pCloud links work right away.</p></div></div>
           <div class="shot"><img src="preview.webp" width="1600" height="1152" alt="Preview of a pasted folder: where it will be copied and what to copy" loading="lazy" /></div>
         </div>
         <div>
-          <div class="step-head"><span class="n">02</span><div><h3>Let it copy</h3><p>Watch the progress or close the window — Trawl keeps going in the menu bar. Stopping keeps everything copied so far.</p></div></div>
+          <div class="step-head"><span class="n">02</span><div><h3>Let it copy</h3><p>Watch it, or close the window and Trawl finishes from the menu bar. If you stop a copy, the files it already downloaded stay.</p></div></div>
           <div class="shot"><img src="copying.webp" width="1600" height="1152" alt="A folder copying at 50 percent with size, file count and speed" loading="lazy" /></div>
         </div>
         <div>
-          <div class="step-head"><span class="n">03</span><div><h3>Open what arrived</h3><p>Every folder has its own page: browse its files, open them, and see where it lives on your computer.</p></div></div>
+          <div class="step-head"><span class="n">03</span><div><h3>Open what arrived</h3><p>Each folder has its own page where you can browse and open its files and see where it is on your computer.</p></div></div>
           <div class="shot"><img src="folder.webp" width="1600" height="904" alt="A folder's page listing its subfolders and files with sizes and dates" loading="lazy" /></div>
         </div>
       </div>
@@ -214,8 +214,8 @@
   <section id="install">
     <div class="wrap">
       <div class="sec-head col">
-        <h2>Install Trawl.</h2>
-        <p>Everything it needs is inside the app.</p>
+        <h2>Install</h2>
+        <p>rclone is bundled, so there's nothing else to set up.</p>
       </div>
       <div class="install">
         <div>
@@ -235,15 +235,15 @@
           </div>
         </div>
       </div>
-      <p class="note col">Signed and notarized by Apple. On first launch, paste a folder link — Google Drive asks you to sign in, pCloud links don't.</p>
+      <p class="note col">The macOS app is signed and notarized by Apple, so it opens without a warning. When it starts, paste a folder link. Google Drive will ask you to sign in, and pCloud links won't.</p>
     </div>
   </section>
 
   <section id="opensource">
     <div class="wrap">
       <div class="sec-head col">
-        <h2>Free, open source, and yours to keep.</h2>
-        <p>MIT licensed. Trawl only reads from the shared folder and writes to your disk.</p>
+        <h2>Free and open source</h2>
+        <p>Trawl is MIT licensed and the code is on GitHub. If it saves you some time, you can buy me a coffee.</p>
       </div>
       <div class="links">
         <a class="btn sm" href="https://github.com/kurenn/trawl">Star on GitHub</a>
